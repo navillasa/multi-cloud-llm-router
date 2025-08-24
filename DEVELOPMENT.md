@@ -111,7 +111,7 @@ router:
   overheadFactor: 1.1         # Cost calculation overhead
 
 clusters:
-  - name: aws-us-west-2
+  - name: aws-us-east-1
     endpoint: https://aws.llm.yourdomain.com
     provider: aws
     costPerHour: 0.0928

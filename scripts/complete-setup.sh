@@ -121,7 +121,7 @@ router:
 clusters:
   - name: mock-aws
     endpoint: http://httpbin.org/status/200
-    region: us-west-2
+    region: us-east-1
     provider: aws
     costPerHour: 0.0928
     authType: none
@@ -185,7 +185,7 @@ EOF
         fi
         
         pulumi config set multi-cloud-llm-aws:domainName "$domain"
-        pulumi config set aws:region us-west-2
+        pulumi config set aws:region us-east-1
         
         log_info "Deploying AWS infrastructure..."
         log_warn "This will take 10-15 minutes..."

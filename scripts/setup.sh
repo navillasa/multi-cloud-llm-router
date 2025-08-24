@@ -51,7 +51,7 @@ case $choice in
             
             read -p "Enter your domain name (e.g., llm.yourdomain.com): " domain
             pulumi config set multi-cloud-llm-aws:domainName "$domain"
-            pulumi config set aws:region us-west-2
+            pulumi config set aws:region us-east-1
         fi
         
         echo -e "${YELLOW}Running pulumi up...${NC}"

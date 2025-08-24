@@ -20,12 +20,12 @@ func main() {
 		// Configuration
 		region := cfg.Get("region")
 		if region == "" {
-			region = "us-west-2"
+			region = "us-east-1"
 		}
 		
 		environment := cfg.Get("environment")
 		if environment == "" {
-			environment = "prod"
+			environment = "dev"
 		}
 
 		domainName := cfg.Require("domainName") // e.g., "llm.yourdomain.com"
@@ -191,7 +191,7 @@ func main() {
 			return err
 		}
 
-		// Node Group
+		// Node Group - FREE TIER OPTIMIZED
 		nodeGroup, err := eks.NewNodeGroup(ctx, naming.GetName("nodegroup"), &eks.NodeGroupArgs{
 			ClusterName:   cluster.Name,
 			NodeRoleArn:   nodeRole.Arn,
@@ -200,16 +200,16 @@ func main() {
 				publicSubnet2.ID(),
 			},
 			InstanceTypes: pulumi.StringArray{
-				pulumi.String("t3.large"), // 2 vCPU, 8GB RAM - good for CPU inference
+				pulumi.String("t3.small"), // 2 vCPU, 2GB RAM - Minimum for tiny LLMs
 			},
 			ScalingConfig: &eks.NodeGroupScalingConfigArgs{
-				DesiredSize: pulumi.Int(2),
+				DesiredSize: pulumi.Int(1), // Only 1 node to minimize cost
 				MinSize:     pulumi.Int(1),
-				MaxSize:     pulumi.Int(5),
+				MaxSize:     pulumi.Int(2), // Max 2 for cost control
 			},
 			AmiType:       pulumi.String("AL2_x86_64"),
-			CapacityType:  pulumi.String("ON_DEMAND"),
-			DiskSize:      pulumi.Int(20),
+			CapacityType:  pulumi.String("SPOT"), // Use SPOT instances for maximum savings
+			DiskSize:      pulumi.Int(8), // Minimum disk size
 			Tags:          pulumi.ToStringMap(naming.GetTags()),
 		})
 		if err != nil {
@@ -267,7 +267,7 @@ func main() {
 		ctx.Export("clusterEndpoint", cluster.Endpoint)
 		ctx.Export("kubeconfig", kubeconfig)
 		ctx.Export("region", pulumi.String(region))
-		ctx.Export("clusterHostname", pulumi.Sprintf("aws.%s", domainName))
+		ctx.Export("clusterHostname", pulumi.String(domainName))
 
 		return nil
 	})

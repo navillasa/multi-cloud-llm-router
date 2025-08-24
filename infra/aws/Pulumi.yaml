@@ -5,7 +5,7 @@ description: AWS EKS infrastructure for multi-cloud LLM router
 config:
   aws:region:
     description: AWS region for deployment
-    default: us-west-2
+    value: us-east-1
   multi-cloud-llm-aws:environment:
     description: Environment (prod, staging, dev)
     default: prod

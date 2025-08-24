@@ -1,9 +1,6 @@
 package common
 
 import (
-	"encoding/base64"
-	"fmt"
-
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 

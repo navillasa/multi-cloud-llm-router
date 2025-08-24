@@ -12,4 +12,4 @@ namespace: llm-system
 commonLabels:
   environment: prod
   cloud.provider: aws
-  cluster.name: aws-us-west-2
+  cluster.name: aws-us-east-1

@@ -1,0 +1,38 @@
+server:
+  port: 8080
+  readTimeout: 30s
+  writeTimeout: 120s
+  idleTimeout: 60s
+
+router:
+  stickinessWindow: 60s
+  healthCheckInterval: 30s
+  maxLatencyMs: 5000
+  maxQueueDepth: 10
+  overheadFactor: 1.1
+  metricsUpdateInterval: 30s
+
+clusters:
+  - name: aws-us-west-2
+    endpoint: https://aws.llm.yourdomain.com
+    region: us-west-2
+    provider: aws
+    costPerHour: 0.0928  # t3.large on-demand price
+    authType: hmac
+    sharedSecret: your-shared-secret-here
+    
+  - name: gcp-us-central1
+    endpoint: https://gcp.llm.yourdomain.com
+    region: us-central1
+    provider: gcp
+    costPerHour: 0.0950  # n1-standard-2 price
+    authType: hmac
+    sharedSecret: your-shared-secret-here
+    
+  - name: azure-eastus
+    endpoint: https://azure.llm.yourdomain.com
+    region: eastus
+    provider: azure
+    costPerHour: 0.0968  # Standard_D2s_v3 price
+    authType: hmac
+    sharedSecret: your-shared-secret-here

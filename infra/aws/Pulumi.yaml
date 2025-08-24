@@ -1,0 +1,14 @@
+name: multi-cloud-llm-aws
+runtime: go
+description: AWS EKS infrastructure for multi-cloud LLM router
+
+config:
+  aws:region:
+    description: AWS region for deployment
+    default: us-west-2
+  multi-cloud-llm-aws:environment:
+    description: Environment (prod, staging, dev)
+    default: prod
+  multi-cloud-llm-aws:domainName:
+    description: Domain name for the cluster endpoint (e.g., llm.yourdomain.com)
+    type: string

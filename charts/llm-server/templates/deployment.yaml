@@ -1,0 +1,152 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "llm-server.fullname" . }}
+  labels:
+    {{- include "llm-server.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "llm-server.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+      labels:
+        {{- include "llm-server.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        - name: model-downloader
+          image: "{{ .Values.initContainer.image.repository }}:{{ .Values.initContainer.image.tag }}"
+          imagePullPolicy: {{ .Values.initContainer.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              if [ ! -f {{ .Values.model.path }} ]; then
+                echo "Downloading model from {{ .Values.model.uri }}"
+                mkdir -p $(dirname {{ .Values.model.path }})
+                if echo "{{ .Values.model.uri }}" | grep -q "^s3://"; then
+                  rclone copy "{{ .Values.model.uri }}" "$(dirname {{ .Values.model.path }})" --config=/dev/null --s3-provider=AWS --s3-env-auth
+                elif echo "{{ .Values.model.uri }}" | grep -q "^gs://"; then
+                  rclone copy "{{ .Values.model.uri }}" "$(dirname {{ .Values.model.path }})" --config=/dev/null --gcs-env-auth
+                elif echo "{{ .Values.model.uri }}" | grep -q "^https://"; then
+                  wget -O {{ .Values.model.path }} "{{ .Values.model.uri }}"
+                else
+                  echo "Unsupported URI scheme: {{ .Values.model.uri }}"
+                  exit 1
+                fi
+                echo "Model download completed"
+              else
+                echo "Model already exists at {{ .Values.model.path }}"
+              fi
+          volumeMounts:
+            - name: model-storage
+              mountPath: /models
+          resources:
+            {{- toYaml .Values.initContainer.resources | nindent 12 }}
+      containers:
+        - name: llama-cpp-server
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.llamacpp.port }}
+              protocol: TCP
+          args:
+            - --server
+            - --host
+            - {{ .Values.llamacpp.host }}
+            - --port
+            - "{{ .Values.llamacpp.port }}"
+            - --model
+            - {{ .Values.model.path }}
+            - --ctx-size
+            - "{{ .Values.llamacpp.ctx_size }}"
+            - --parallel
+            - "{{ .Values.llamacpp.parallel }}"
+            - --n-gpu-layers
+            - "{{ .Values.llamacpp.ngl }}"
+            {{- if .Values.llamacpp.embedding }}
+            - --embedding
+            {{- end }}
+            {{- if not .Values.llamacpp.flash_attn }}
+            - --flash-attn
+            - "false"
+            {{- end }}
+            {{- range .Values.llamacpp.extraArgs }}
+            - {{ . }}
+            {{- end }}
+          env:
+            - name: LLAMA_NUMA
+              value: "true"
+          volumeMounts:
+            - name: model-storage
+              mountPath: /models
+          livenessProbe:
+            {{- toYaml .Values.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.readinessProbe | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+        - name: metrics-exporter
+          image: prom/node-exporter:latest
+          ports:
+            - name: metrics
+              containerPort: 9100
+              protocol: TCP
+          args:
+            - --web.listen-address=:9100
+            - --path.procfs=/host/proc
+            - --path.sysfs=/host/sys
+            - --collector.filesystem.ignored-mount-points
+            - "^/(sys|proc|dev|host|etc|rootfs/var/lib/docker/containers|rootfs/var/lib/docker/overlay2|rootfs/run/docker/netns|rootfs/var/lib/docker/aufs)($$|/)"
+          volumeMounts:
+            - name: proc
+              mountPath: /host/proc
+              readOnly: true
+            - name: sys
+              mountPath: /host/sys
+              readOnly: true
+          resources:
+            limits:
+              cpu: 100m
+              memory: 128Mi
+            requests:
+              cpu: 50m
+              memory: 64Mi
+      volumes:
+        - name: model-storage
+          persistentVolumeClaim:
+            claimName: {{ include "llm-server.fullname" . }}-model-storage
+        - name: proc
+          hostPath:
+            path: /proc
+        - name: sys
+          hostPath:
+            path: /sys
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

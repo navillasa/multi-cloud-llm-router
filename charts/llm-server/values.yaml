@@ -1,0 +1,149 @@
+# Default values for llm-server
+replicaCount: 1
+
+image:
+  repository: ghcr.io/ggerganov/llama.cpp
+  tag: server
+  pullPolicy: IfNotPresent
+
+nameOverride: ""
+fullnameOverride: ""
+
+# Model configuration
+model:
+  # URI to download the model from (S3, GCS, Azure Blob, HTTP)
+  uri: "https://huggingface.co/microsoft/DialoGPT-medium/resolve/main/pytorch_model.bin"
+  # Local path where model will be stored in the container
+  path: "/models/model.gguf"
+  # Storage class for the PVC
+  storageClass: "standard"
+  # Size of the PVC for model storage
+  storageSize: "10Gi"
+
+# llama.cpp server configuration
+llamacpp:
+  # Host to bind to
+  host: "0.0.0.0"
+  # Port to bind to
+  port: 8080
+  # Number of GPU layers (0 for CPU only)
+  ngl: 0
+  # Context size
+  ctx_size: 2048
+  # Number of parallel requests
+  parallel: 4
+  # Enable embeddings endpoint
+  embedding: true
+  # Disable flash attention for CPU
+  flash_attn: false
+  # Additional arguments
+  extraArgs: []
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 8080
+  targetPort: 8080
+  annotations: {}
+
+# Ingress configuration
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"
+    nginx.ingress.kubernetes.io/limit-connections: "10"
+    nginx.ingress.kubernetes.io/limit-rps: "20"
+  hosts:
+    - host: aws.llm.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: llm-server-tls
+      hosts:
+        - aws.llm.example.com
+
+# Resource configuration
+resources:
+  limits:
+    cpu: 4000m
+    memory: 6Gi
+  requests:
+    cpu: 2000m
+    memory: 4Gi
+
+# HPA configuration
+autoscaling:
+  enabled: true
+  minReplicas: 0  # Enable scale-to-zero
+  maxReplicas: 4
+  targetCPUUtilizationPercentage: 65
+  # Custom metrics can be added here for queue depth
+
+# Node selector and tolerations
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# Security context
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+# Pod security context
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+# Liveness and readiness probes
+livenessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 60
+  periodSeconds: 30
+  timeoutSeconds: 10
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+# ServiceMonitor for Prometheus
+serviceMonitor:
+  enabled: true
+  labels: {}
+  annotations: {}
+  interval: 30s
+  scrapeTimeout: 10s
+
+# Cloud-specific configuration
+cloud:
+  provider: "aws"  # aws, gcp, azure
+  region: "us-west-2"
+  costPerHour: 0.0928  # t3.large on-demand price in us-west-2
+
+# Init container for model downloading
+initContainer:
+  image:
+    repository: rclone/rclone
+    tag: latest
+    pullPolicy: IfNotPresent
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi

@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "llm-server.fullname" . }}-model-storage
+  labels:
+    {{- include "llm-server.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: {{ .Values.model.storageClass }}
+  resources:
+    requests:
+      storage: {{ .Values.model.storageSize }}

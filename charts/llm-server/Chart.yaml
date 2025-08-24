@@ -1,0 +1,8 @@
+apiVersion: v2
+name: llm-server
+description: CPU-based llama.cpp server with model caching and auto-scaling
+type: application
+version: 0.1.0
+appVersion: "1.0"
+
+dependencies: []

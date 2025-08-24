@@ -3,7 +3,6 @@ package health
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"sync"
 	"time"
@@ -26,10 +25,10 @@ type ClusterMetrics struct {
 
 // Checker monitors cluster health and collects metrics
 type Checker struct {
-	mu               sync.RWMutex
-	clusters         map[string]*ClusterMetrics
-	checkInterval    time.Duration
-	httpClient       *http.Client
+	mu                   sync.RWMutex
+	clusters             map[string]*ClusterMetrics
+	checkInterval        time.Duration
+	httpClient           *http.Client
 	maxConsecutiveErrors int
 }
 
@@ -49,7 +48,7 @@ func NewChecker(checkInterval time.Duration) *Checker {
 func (c *Checker) AddCluster(name, endpoint string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	
+
 	c.clusters[name] = &ClusterMetrics{
 		Healthy:   false,
 		Endpoint:  endpoint,
@@ -61,10 +60,10 @@ func (c *Checker) AddCluster(name, endpoint string) {
 func (c *Checker) Start(ctx context.Context) {
 	ticker := time.NewTicker(c.checkInterval)
 	defer ticker.Stop()
-	
+
 	// Initial check
 	c.checkAllClusters()
-	
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -79,14 +78,14 @@ func (c *Checker) Start(ctx context.Context) {
 func (c *Checker) GetHealthyMetrics() map[string]ClusterMetrics {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	
+
 	healthy := make(map[string]ClusterMetrics)
 	for name, metrics := range c.clusters {
 		if metrics.Healthy {
 			healthy[name] = *metrics
 		}
 	}
-	
+
 	return healthy
 }
 
@@ -94,12 +93,12 @@ func (c *Checker) GetHealthyMetrics() map[string]ClusterMetrics {
 func (c *Checker) GetAllMetrics() map[string]ClusterMetrics {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	
+
 	all := make(map[string]ClusterMetrics)
 	for name, metrics := range c.clusters {
 		all[name] = *metrics
 	}
-	
+
 	return all
 }
 
@@ -107,12 +106,12 @@ func (c *Checker) GetAllMetrics() map[string]ClusterMetrics {
 func (c *Checker) GetClusterMetrics(name string) (ClusterMetrics, bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	
+
 	metrics, exists := c.clusters[name]
 	if !exists {
 		return ClusterMetrics{}, false
 	}
-	
+
 	return *metrics, true
 }
 
@@ -123,7 +122,7 @@ func (c *Checker) checkAllClusters() {
 		clusterNames = append(clusterNames, name)
 	}
 	c.mu.RUnlock()
-	
+
 	// Check clusters concurrently
 	var wg sync.WaitGroup
 	for _, name := range clusterNames {
@@ -145,33 +144,33 @@ func (c *Checker) checkCluster(name string) {
 	}
 	endpoint := cluster.Endpoint
 	c.mu.RUnlock()
-	
+
 	start := time.Now()
 	healthy, queueDepth, tokensPerSec, latencyP95 := c.performHealthCheck(endpoint)
 	responseTime := float64(time.Since(start).Nanoseconds()) / 1e6 // Convert to milliseconds
-	
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	
+
 	cluster = c.clusters[name] // Re-get after acquiring write lock
 	cluster.LastCheck = time.Now()
 	cluster.ResponseTime = responseTime
 	cluster.LatencyP95 = latencyP95
 	cluster.QueueDepth = queueDepth
 	cluster.TokensPerSecond = tokensPerSec
-	
+
 	if healthy {
 		cluster.Healthy = true
 		cluster.ConsecutiveError = 0
-		logrus.Debugf("Cluster %s is healthy (response: %.2fms, tps: %.2f, queue: %d)", 
+		logrus.Debugf("Cluster %s is healthy (response: %.2fms, tps: %.2f, queue: %d)",
 			name, responseTime, tokensPerSec, queueDepth)
 	} else {
 		cluster.ErrorCount++
 		cluster.ConsecutiveError++
-		
+
 		if cluster.ConsecutiveError >= c.maxConsecutiveErrors {
 			cluster.Healthy = false
-			logrus.Warnf("Cluster %s marked unhealthy after %d consecutive errors", 
+			logrus.Warnf("Cluster %s marked unhealthy after %d consecutive errors",
 				name, cluster.ConsecutiveError)
 		}
 	}
@@ -186,15 +185,15 @@ func (c *Checker) performHealthCheck(endpoint string) (healthy bool, queueDepth 
 		return false, 0, 0, 0
 	}
 	defer resp.Body.Close()
-	
+
 	if resp.StatusCode != http.StatusOK {
 		logrus.Debugf("Health check returned status %d for %s", resp.StatusCode, endpoint)
 		return false, 0, 0, 0
 	}
-	
+
 	// Try to get metrics if available
 	queueDepth, tokensPerSec, latencyP95 = c.getMetrics(endpoint)
-	
+
 	return true, queueDepth, tokensPerSec, latencyP95
 }
 
@@ -203,7 +202,7 @@ func (c *Checker) getMetrics(endpoint string) (queueDepth int, tokensPerSec, lat
 	queueDepth = 0
 	tokensPerSec = 10.0 // Conservative default
 	latencyP95 = 1000.0 // Default 1 second
-	
+
 	// Try to get actual metrics from the endpoint
 	metricsURL := endpoint + "/metrics"
 	resp, err := c.httpClient.Get(metricsURL)
@@ -211,11 +210,11 @@ func (c *Checker) getMetrics(endpoint string) (queueDepth int, tokensPerSec, lat
 		return // Use defaults
 	}
 	defer resp.Body.Close()
-	
+
 	if resp.StatusCode != http.StatusOK {
 		return // Use defaults
 	}
-	
+
 	// Try to parse metrics (this would be prometheus format typically)
 	// For now, we'll try a simple JSON endpoint if available
 	statsURL := endpoint + "/stats"
@@ -224,14 +223,14 @@ func (c *Checker) getMetrics(endpoint string) (queueDepth int, tokensPerSec, lat
 		return // Use defaults
 	}
 	defer statsResp.Body.Close()
-	
+
 	if statsResp.StatusCode == http.StatusOK {
 		var stats struct {
 			QueueDepth      int     `json:"queue_depth"`
 			TokensPerSecond float64 `json:"tokens_per_second"`
 			LatencyP95      float64 `json:"latency_p95_ms"`
 		}
-		
+
 		if err := json.NewDecoder(statsResp.Body).Decode(&stats); err == nil {
 			if stats.QueueDepth >= 0 {
 				queueDepth = stats.QueueDepth
@@ -244,7 +243,7 @@ func (c *Checker) getMetrics(endpoint string) (queueDepth int, tokensPerSec, lat
 			}
 		}
 	}
-	
+
 	return queueDepth, tokensPerSec, latencyP95
 }
 
@@ -252,7 +251,7 @@ func (c *Checker) getMetrics(endpoint string) (queueDepth int, tokensPerSec, lat
 func (c *Checker) MarkUnhealthy(name string, reason string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	
+
 	if cluster, exists := c.clusters[name]; exists {
 		cluster.Healthy = false
 		cluster.ErrorCount++
@@ -265,7 +264,7 @@ func (c *Checker) MarkUnhealthy(name string, reason string) {
 func (c *Checker) ForceHealthy(name string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	
+
 	if cluster, exists := c.clusters[name]; exists {
 		cluster.Healthy = true
 		cluster.ConsecutiveError = 0

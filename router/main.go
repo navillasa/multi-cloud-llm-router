@@ -24,9 +24,9 @@ import (
 
 // Config represents the router configuration
 type Config struct {
-	Server   ServerConfig   `yaml:"server"`
+	Server   ServerConfig    `yaml:"server"`
 	Clusters []ClusterConfig `yaml:"clusters"`
-	Router   RouterConfig   `yaml:"router"`
+	Router   RouterConfig    `yaml:"router"`
 }
 
 type ServerConfig struct {
@@ -49,12 +49,12 @@ type ClusterConfig struct {
 }
 
 type RouterConfig struct {
-	StickinessWindow       time.Duration `yaml:"stickinessWindow"`
-	HealthCheckInterval    time.Duration `yaml:"healthCheckInterval"`
-	MaxLatencyMs           int           `yaml:"maxLatencyMs"`
-	MaxQueueDepth          int           `yaml:"maxQueueDepth"`
-	OverheadFactor         float64       `yaml:"overheadFactor"`
-	MetricsUpdateInterval  time.Duration `yaml:"metricsUpdateInterval"`
+	StickinessWindow      time.Duration `yaml:"stickinessWindow"`
+	HealthCheckInterval   time.Duration `yaml:"healthCheckInterval"`
+	MaxLatencyMs          int           `yaml:"maxLatencyMs"`
+	MaxQueueDepth         int           `yaml:"maxQueueDepth"`
+	OverheadFactor        float64       `yaml:"overheadFactor"`
+	MetricsUpdateInterval time.Duration `yaml:"metricsUpdateInterval"`
 }
 
 // Router holds the main application state
@@ -68,11 +68,11 @@ type Router struct {
 
 // Metrics holds Prometheus metrics
 type Metrics struct {
-	requestsTotal      *prometheus.CounterVec
-	requestDuration    *prometheus.HistogramVec
-	clusterHealth      *prometheus.GaugeVec
-	clusterCost        *prometheus.GaugeVec
-	routingDecisions   *prometheus.CounterVec
+	requestsTotal    *prometheus.CounterVec
+	requestDuration  *prometheus.HistogramVec
+	clusterHealth    *prometheus.GaugeVec
+	clusterCost      *prometheus.GaugeVec
+	routingDecisions *prometheus.CounterVec
 }
 
 func newMetrics() *Metrics {
@@ -129,7 +129,7 @@ func newMetrics() *Metrics {
 // NewRouter creates a new router instance
 func NewRouter(config *Config) *Router {
 	metrics := newMetrics()
-	
+
 	healthChecker := health.NewChecker(config.Router.HealthCheckInterval)
 	costEngine := cost.NewEngine(config.Router.OverheadFactor)
 	forwarder := forward.NewForwarder()
@@ -138,7 +138,7 @@ func NewRouter(config *Config) *Router {
 	for _, cluster := range config.Clusters {
 		healthChecker.AddCluster(cluster.Name, cluster.Endpoint)
 		costEngine.AddCluster(cluster.Name, cluster.CostPerHour)
-		
+
 		// Configure authentication
 		switch cluster.AuthType {
 		case "hmac":
@@ -167,13 +167,13 @@ func (r *Router) Start(ctx context.Context) error {
 
 	// Setup HTTP server
 	router := mux.NewRouter()
-	
+
 	// Health endpoint
 	router.HandleFunc("/health", r.healthHandler).Methods("GET")
-	
+
 	// Metrics endpoint
 	router.Handle("/metrics", promhttp.Handler()).Methods("GET")
-	
+
 	// LLM API endpoints
 	api := router.PathPrefix("/v1").Subrouter()
 	api.HandleFunc("/chat/completions", r.chatCompletionsHandler).Methods("POST")
@@ -202,7 +202,7 @@ func (r *Router) Start(ctx context.Context) error {
 	// Graceful shutdown
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	
+
 	return srv.Shutdown(shutdownCtx)
 }
 
@@ -216,7 +216,7 @@ func (r *Router) selectCluster() (string, string, error) {
 	validClusters := make(map[string]health.ClusterMetrics)
 	for name, metrics := range healthyMetrics {
 		if metrics.LatencyP95 <= float64(r.config.Router.MaxLatencyMs) &&
-		   metrics.QueueDepth <= r.config.Router.MaxQueueDepth {
+			metrics.QueueDepth <= r.config.Router.MaxQueueDepth {
 			validClusters[name] = metrics
 		}
 	}
@@ -253,7 +253,7 @@ func (r *Router) selectCluster() (string, string, error) {
 	}
 
 	r.metrics.routingDecisions.WithLabelValues(cheapestCluster, reason).Inc()
-	
+
 	return cheapestCluster, endpoint, nil
 }
 
@@ -271,7 +271,7 @@ func (r *Router) embeddingsHandler(w http.ResponseWriter, req *http.Request) {
 
 func (r *Router) handleLLMRequest(w http.ResponseWriter, req *http.Request, endpoint string) {
 	start := time.Now()
-	
+
 	// Select target cluster
 	clusterName, clusterEndpoint, err := r.selectCluster()
 	if err != nil {
@@ -282,11 +282,11 @@ func (r *Router) handleLLMRequest(w http.ResponseWriter, req *http.Request, endp
 
 	// Forward request
 	err = r.forwarder.Forward(w, req, clusterName, clusterEndpoint+endpoint)
-	
+
 	// Record metrics
 	duration := time.Since(start).Seconds()
 	r.metrics.requestDuration.WithLabelValues(clusterName).Observe(duration)
-	
+
 	if err != nil {
 		logrus.Errorf("Failed to forward request to %s: %v", clusterName, err)
 		r.metrics.requestsTotal.WithLabelValues(clusterName, "error").Inc()
@@ -297,12 +297,12 @@ func (r *Router) handleLLMRequest(w http.ResponseWriter, req *http.Request, endp
 
 func (r *Router) healthHandler(w http.ResponseWriter, req *http.Request) {
 	healthyCount := len(r.healthChecker.GetHealthyMetrics())
-	
+
 	status := map[string]interface{}{
-		"status":          "healthy",
+		"status":           "healthy",
 		"healthy_clusters": healthyCount,
 		"total_clusters":   len(r.config.Clusters),
-		"timestamp":       time.Now().ISO8601(),
+		"timestamp":        time.Now().Format(time.RFC3339),
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -325,10 +325,10 @@ func (r *Router) updateMetrics(ctx context.Context) {
 
 func (r *Router) refreshMetrics() {
 	allMetrics := r.healthChecker.GetAllMetrics()
-	
+
 	for _, cluster := range r.config.Clusters {
 		metrics, exists := allMetrics[cluster.Name]
-		
+
 		// Update health metric
 		if exists && metrics.Healthy {
 			r.metrics.clusterHealth.WithLabelValues(cluster.Name, cluster.Provider, cluster.Region).Set(1)

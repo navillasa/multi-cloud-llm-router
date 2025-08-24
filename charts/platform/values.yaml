@@ -1,0 +1,87 @@
+# Platform components configuration
+
+ingressNginx:
+  enabled: true
+  controller:
+    service:
+      type: LoadBalancer
+      annotations:
+        service.beta.kubernetes.io/aws-load-balancer-type: nlb
+        service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+    config:
+      proxy-read-timeout: "3600"
+      proxy-send-timeout: "3600"
+      proxy-connect-timeout: "60"
+      client-max-body-size: "50m"
+    metrics:
+      enabled: true
+      serviceMonitor:
+        enabled: true
+
+certManager:
+  enabled: true
+  installCRDs: true
+  global:
+    leaderElection:
+      namespace: cert-manager
+  prometheus:
+    enabled: true
+    servicemonitor:
+      enabled: true
+
+prometheus:
+  enabled: true
+  
+  # Prometheus configuration
+  prometheus:
+    prometheusSpec:
+      retention: 15d
+      storageSpec:
+        volumeClaimTemplate:
+          spec:
+            storageClassName: gp2
+            accessModes: ["ReadWriteOnce"]
+            resources:
+              requests:
+                storage: 50Gi
+      resources:
+        requests:
+          memory: 2Gi
+          cpu: 1000m
+        limits:
+          memory: 4Gi
+          cpu: 2000m
+      
+  # Grafana configuration
+  grafana:
+    enabled: true
+    adminPassword: "admin"  # Change this!
+    persistence:
+      enabled: true
+      storageClassName: gp2
+      size: 10Gi
+    resources:
+      requests:
+        memory: 256Mi
+        cpu: 100m
+      limits:
+        memory: 512Mi
+        cpu: 200m
+        
+  # AlertManager configuration  
+  alertmanager:
+    enabled: true
+    alertmanagerSpec:
+      storage:
+        volumeClaimTemplate:
+          spec:
+            storageClassName: gp2
+            accessModes: ["ReadWriteOnce"]
+            resources:
+              requests:
+                storage: 10Gi
+
+# Cloud-specific settings
+cloud:
+  provider: aws
+  region: us-west-2

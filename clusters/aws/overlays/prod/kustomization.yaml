@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+patchesStrategicMerge:
+  - values-override.yaml
+
+namespace: llm-system
+
+commonLabels:
+  environment: prod
+  cloud.provider: aws
+  cluster.name: aws-us-west-2

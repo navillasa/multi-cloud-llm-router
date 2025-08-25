@@ -11,6 +11,12 @@ router:
   maxQueueDepth: 10
   overheadFactor: 1.1
   metricsUpdateInterval: 30s
+  # Routing strategy: "cost", "latency", "hybrid", "external_first", "cluster_first"
+  routingStrategy: hybrid
+  # Fallback to external providers when clusters are unhealthy
+  enableExternalFallback: true
+  # Prefer clusters for requests under this cost threshold ($/1K tokens)
+  clusterCostThreshold: 0.01
 
 clusters:
   - name: aws-us-west-2
@@ -36,3 +42,35 @@ clusters:
     costPerHour: 0.0968  # Standard_D2s_v3 price
     authType: hmac
     sharedSecret: your-shared-secret-here
+
+# External LLM providers (OpenAI, Claude, Gemini)
+externalProviders:
+  - name: openai
+    type: openai
+    enabled: true
+    apiKey: "${OPENAI_API_KEY}"
+    defaultModel: gpt-3.5-turbo
+    rateLimit:
+      requestsPerMinute: 3500
+      tokensPerMinute: 90000
+      burstMultiplier: 1.5
+    
+  - name: claude
+    type: claude
+    enabled: true
+    apiKey: "${ANTHROPIC_API_KEY}"
+    defaultModel: claude-3-haiku-20240307
+    rateLimit:
+      requestsPerMinute: 1000
+      tokensPerMinute: 100000
+      burstMultiplier: 1.2
+      
+  - name: gemini
+    type: gemini
+    enabled: true
+    apiKey: "${GEMINI_API_KEY}"
+    defaultModel: gemini-1.5-flash
+    rateLimit:
+      requestsPerMinute: 1500
+      tokensPerMinute: 32000
+      burstMultiplier: 1.3

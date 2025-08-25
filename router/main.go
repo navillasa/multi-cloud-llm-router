@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/navillasa/multi-cloud-llm-router/router/internal/cost"
 	"github.com/navillasa/multi-cloud-llm-router/router/internal/forward"
 	"github.com/navillasa/multi-cloud-llm-router/router/internal/health"
+	"github.com/navillasa/multi-cloud-llm-router/router/internal/providers"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
@@ -24,9 +26,10 @@ import (
 
 // Config represents the router configuration
 type Config struct {
-	Server   ServerConfig    `yaml:"server"`
-	Clusters []ClusterConfig `yaml:"clusters"`
-	Router   RouterConfig    `yaml:"router"`
+	Server            ServerConfig                   `yaml:"server"`
+	Clusters          []ClusterConfig                `yaml:"clusters"`
+	ExternalProviders []providers.ProviderConfig     `yaml:"externalProviders"`
+	Router            RouterConfig                   `yaml:"router"`
 }
 
 type ServerConfig struct {
@@ -49,30 +52,38 @@ type ClusterConfig struct {
 }
 
 type RouterConfig struct {
-	StickinessWindow      time.Duration `yaml:"stickinessWindow"`
-	HealthCheckInterval   time.Duration `yaml:"healthCheckInterval"`
-	MaxLatencyMs          int           `yaml:"maxLatencyMs"`
-	MaxQueueDepth         int           `yaml:"maxQueueDepth"`
-	OverheadFactor        float64       `yaml:"overheadFactor"`
-	MetricsUpdateInterval time.Duration `yaml:"metricsUpdateInterval"`
+	StickinessWindow         time.Duration `yaml:"stickinessWindow"`
+	HealthCheckInterval      time.Duration `yaml:"healthCheckInterval"`
+	MaxLatencyMs             int           `yaml:"maxLatencyMs"`
+	MaxQueueDepth            int           `yaml:"maxQueueDepth"`
+	OverheadFactor           float64       `yaml:"overheadFactor"`
+	MetricsUpdateInterval    time.Duration `yaml:"metricsUpdateInterval"`
+	RoutingStrategy          string        `yaml:"routingStrategy"`
+	EnableExternalFallback   bool          `yaml:"enableExternalFallback"`
+	ClusterCostThreshold     float64       `yaml:"clusterCostThreshold"`
 }
 
 // Router holds the main application state
 type Router struct {
-	config        *Config
-	healthChecker *health.Checker
-	costEngine    *cost.Engine
-	forwarder     *forward.Forwarder
-	metrics       *Metrics
+	config          *Config
+	healthChecker   *health.Checker
+	costEngine      *cost.Engine
+	forwarder       *forward.Forwarder
+	providerManager *providers.ProviderManager
+	metrics         *Metrics
 }
 
 // Metrics holds Prometheus metrics
 type Metrics struct {
-	requestsTotal    *prometheus.CounterVec
-	requestDuration  *prometheus.HistogramVec
-	clusterHealth    *prometheus.GaugeVec
-	clusterCost      *prometheus.GaugeVec
-	routingDecisions *prometheus.CounterVec
+	requestsTotal       *prometheus.CounterVec
+	requestDuration     *prometheus.HistogramVec
+	clusterHealth       *prometheus.GaugeVec
+	clusterCost         *prometheus.GaugeVec
+	providerHealth      *prometheus.GaugeVec
+	providerCost        *prometheus.GaugeVec
+	routingDecisions    *prometheus.CounterVec
+	externalAPIRequests *prometheus.CounterVec
+	tokenUsage          *prometheus.CounterVec
 }
 
 func newMetrics() *Metrics {
@@ -111,7 +122,35 @@ func newMetrics() *Metrics {
 				Name: "llm_router_routing_decisions_total",
 				Help: "Total routing decisions made",
 			},
-			[]string{"cluster", "reason"},
+			[]string{"target", "type", "reason"},
+		),
+		providerHealth: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "llm_router_provider_health",
+				Help: "External provider health status (1=healthy, 0=unhealthy)",
+			},
+			[]string{"provider", "type"},
+		),
+		providerCost: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "llm_router_provider_cost_per_1k_tokens",
+				Help: "Estimated cost per 1K tokens for external providers",
+			},
+			[]string{"provider", "model"},
+		),
+		externalAPIRequests: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "llm_router_external_requests_total",
+				Help: "Total requests sent to external providers",
+			},
+			[]string{"provider", "model", "status"},
+		),
+		tokenUsage: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "llm_router_tokens_total",
+				Help: "Total tokens processed",
+			},
+			[]string{"provider", "type"}, // type: input, output
 		),
 	}
 
@@ -120,7 +159,11 @@ func newMetrics() *Metrics {
 		m.requestDuration,
 		m.clusterHealth,
 		m.clusterCost,
+		m.providerHealth,
+		m.providerCost,
 		m.routingDecisions,
+		m.externalAPIRequests,
+		m.tokenUsage,
 	)
 
 	return m
@@ -133,6 +176,7 @@ func NewRouter(config *Config) *Router {
 	healthChecker := health.NewChecker(config.Router.HealthCheckInterval)
 	costEngine := cost.NewEngine(config.Router.OverheadFactor)
 	forwarder := forward.NewForwarder()
+	providerManager := providers.NewProviderManager()
 
 	// Register clusters
 	for _, cluster := range config.Clusters {
@@ -150,12 +194,40 @@ func NewRouter(config *Config) *Router {
 		}
 	}
 
+	// Register external providers
+	for _, providerConfig := range config.ExternalProviders {
+		if !providerConfig.Enabled {
+			continue
+		}
+
+		// Expand environment variables in API key
+		apiKey := os.ExpandEnv(providerConfig.APIKey)
+		providerConfig.APIKey = apiKey
+
+		var provider providers.Provider
+		switch providerConfig.Type {
+		case "openai":
+			provider = providers.NewOpenAIProvider(providerConfig)
+		case "claude":
+			provider = providers.NewClaudeProvider(providerConfig)
+		case "gemini":
+			provider = providers.NewGeminiProvider(providerConfig)
+		default:
+			logrus.Warnf("Unknown provider type: %s", providerConfig.Type)
+			continue
+		}
+
+		providerManager.RegisterProvider(provider)
+		logrus.Infof("Registered external provider: %s (%s)", providerConfig.Name, providerConfig.Type)
+	}
+
 	return &Router{
-		config:        config,
-		healthChecker: healthChecker,
-		costEngine:    costEngine,
-		forwarder:     forwarder,
-		metrics:       metrics,
+		config:          config,
+		healthChecker:   healthChecker,
+		costEngine:      costEngine,
+		forwarder:       forwarder,
+		providerManager: providerManager,
+		metrics:         metrics,
 	}
 }
 
@@ -206,55 +278,203 @@ func (r *Router) Start(ctx context.Context) error {
 	return srv.Shutdown(shutdownCtx)
 }
 
-func (r *Router) selectCluster() (string, string, error) {
-	healthyMetrics := r.healthChecker.GetHealthyMetrics()
-	if len(healthyMetrics) == 0 {
-		return "", "", fmt.Errorf("no healthy clusters available")
+// RouteTarget represents a routing target (cluster or external provider)
+type RouteTarget struct {
+	Name         string
+	Type         string  // "cluster" or "provider"
+	Endpoint     string
+	Cost         float64
+	IsHealthy    bool
+	LatencyP95   float64
+	QueueDepth   int
+	Provider     providers.Provider // only for external providers
+}
+
+func (r *Router) selectTarget(ctx context.Context) (*RouteTarget, error) {
+	targets := r.getAllTargets(ctx)
+	
+	if len(targets) == 0 {
+		return nil, fmt.Errorf("no healthy targets available")
 	}
 
-	// Filter by SLA constraints
-	validClusters := make(map[string]health.ClusterMetrics)
+	// Apply routing strategy
+	switch r.config.Router.RoutingStrategy {
+	case "cost":
+		return r.selectByCost(targets), nil
+	case "latency":
+		return r.selectByLatency(targets), nil
+	case "external_first":
+		return r.selectExternalFirst(targets), nil
+	case "cluster_first":
+		return r.selectClusterFirst(targets), nil
+	case "hybrid":
+		fallthrough
+	default:
+		return r.selectHybrid(targets), nil
+	}
+}
+
+func (r *Router) getAllTargets(ctx context.Context) []*RouteTarget {
+	var targets []*RouteTarget
+
+	// Add healthy clusters
+	healthyMetrics := r.healthChecker.GetHealthyMetrics()
 	for name, metrics := range healthyMetrics {
 		if metrics.LatencyP95 <= float64(r.config.Router.MaxLatencyMs) &&
 			metrics.QueueDepth <= r.config.Router.MaxQueueDepth {
-			validClusters[name] = metrics
+			
+			cost := r.costEngine.CalculateCostPer1KTokens(name, metrics.TokensPerSecond)
+			endpoint := ""
+			for _, cluster := range r.config.Clusters {
+				if cluster.Name == name {
+					endpoint = cluster.Endpoint
+					break
+				}
+			}
+
+			targets = append(targets, &RouteTarget{
+				Name:       name,
+				Type:       "cluster",
+				Endpoint:   endpoint,
+				Cost:       cost,
+				IsHealthy:  true,
+				LatencyP95: metrics.LatencyP95,
+				QueueDepth: metrics.QueueDepth,
+			})
 		}
 	}
 
-	if len(validClusters) == 0 {
-		return "", "", fmt.Errorf("no clusters meet SLA requirements")
-	}
+	// Add healthy external providers
+	for _, provider := range r.providerManager.GetAllProviders() {
+		if err := provider.Health(ctx); err == nil {
+			// Use estimated cost based on default model
+			pricing := provider.GetModelPricing()
+			cost := float64(999999) // fallback high cost
+			
+			// Get cost from default model or cheapest model
+			for _, modelPricing := range pricing {
+				avgCost := (modelPricing.InputPricePer1K + modelPricing.OutputPricePer1K) / 2
+				if avgCost < cost {
+					cost = avgCost
+				}
+			}
 
-	// Calculate costs and select cheapest
-	cheapestCluster := ""
-	lowestCost := float64(999999)
-	var reason string
-
-	for name, metrics := range validClusters {
-		cost := r.costEngine.CalculateCostPer1KTokens(name, metrics.TokensPerSecond)
-		if cost < lowestCost {
-			lowestCost = cost
-			cheapestCluster = name
-			reason = "lowest_cost"
+			targets = append(targets, &RouteTarget{
+				Name:      provider.Name(),
+				Type:      "provider",
+				Endpoint:  "", // providers handle their own endpoints
+				Cost:      cost,
+				IsHealthy: true,
+				Provider:  provider,
+			})
 		}
 	}
 
-	if cheapestCluster == "" {
-		return "", "", fmt.Errorf("failed to select cluster")
+	return targets
+}
+
+func (r *Router) selectByCost(targets []*RouteTarget) *RouteTarget {
+	if len(targets) == 0 {
+		return nil
 	}
 
-	// Get endpoint from config
-	var endpoint string
-	for _, cluster := range r.config.Clusters {
-		if cluster.Name == cheapestCluster {
-			endpoint = cluster.Endpoint
-			break
+	cheapest := targets[0]
+	for _, target := range targets[1:] {
+		if target.Cost < cheapest.Cost {
+			cheapest = target
 		}
 	}
 
-	r.metrics.routingDecisions.WithLabelValues(cheapestCluster, reason).Inc()
+	r.metrics.routingDecisions.WithLabelValues(cheapest.Name, cheapest.Type, "lowest_cost").Inc()
+	return cheapest
+}
 
-	return cheapestCluster, endpoint, nil
+func (r *Router) selectByLatency(targets []*RouteTarget) *RouteTarget {
+	if len(targets) == 0 {
+		return nil
+	}
+
+	// Prefer clusters for latency (external providers have network overhead)
+	fastest := targets[0]
+	for _, target := range targets[1:] {
+		if target.Type == "cluster" && target.LatencyP95 < fastest.LatencyP95 {
+			fastest = target
+		}
+	}
+
+	r.metrics.routingDecisions.WithLabelValues(fastest.Name, fastest.Type, "lowest_latency").Inc()
+	return fastest
+}
+
+func (r *Router) selectExternalFirst(targets []*RouteTarget) *RouteTarget {
+	// Prefer external providers
+	for _, target := range targets {
+		if target.Type == "provider" {
+			r.metrics.routingDecisions.WithLabelValues(target.Name, target.Type, "external_first").Inc()
+			return target
+		}
+	}
+
+	// Fall back to clusters
+	if len(targets) > 0 {
+		target := targets[0]
+		r.metrics.routingDecisions.WithLabelValues(target.Name, target.Type, "cluster_fallback").Inc()
+		return target
+	}
+
+	return nil
+}
+
+func (r *Router) selectClusterFirst(targets []*RouteTarget) *RouteTarget {
+	// Prefer clusters
+	for _, target := range targets {
+		if target.Type == "cluster" {
+			r.metrics.routingDecisions.WithLabelValues(target.Name, target.Type, "cluster_first").Inc()
+			return target
+		}
+	}
+
+	// Fall back to external providers
+	if len(targets) > 0 {
+		target := targets[0]
+		r.metrics.routingDecisions.WithLabelValues(target.Name, target.Type, "external_fallback").Inc()
+		return target
+	}
+
+	return nil
+}
+
+func (r *Router) selectHybrid(targets []*RouteTarget) *RouteTarget {
+	if len(targets) == 0 {
+		return nil
+	}
+
+	// Find cheapest cluster under threshold
+	var cheapestCluster *RouteTarget
+	for _, target := range targets {
+		if target.Type == "cluster" && target.Cost <= r.config.Router.ClusterCostThreshold {
+			if cheapestCluster == nil || target.Cost < cheapestCluster.Cost {
+				cheapestCluster = target
+			}
+		}
+	}
+
+	// Use cluster if found and cost-effective
+	if cheapestCluster != nil {
+		r.metrics.routingDecisions.WithLabelValues(cheapestCluster.Name, cheapestCluster.Type, "hybrid_cluster").Inc()
+		return cheapestCluster
+	}
+
+	// Otherwise use cheapest overall target
+	cheapest := targets[0]
+	for _, target := range targets[1:] {
+		if target.Cost < cheapest.Cost {
+			cheapest = target
+		}
+	}
+
+	r.metrics.routingDecisions.WithLabelValues(cheapest.Name, cheapest.Type, "hybrid_cheapest").Inc()
+	return cheapest
 }
 
 func (r *Router) chatCompletionsHandler(w http.ResponseWriter, req *http.Request) {
@@ -271,38 +491,63 @@ func (r *Router) embeddingsHandler(w http.ResponseWriter, req *http.Request) {
 
 func (r *Router) handleLLMRequest(w http.ResponseWriter, req *http.Request, endpoint string) {
 	start := time.Now()
+	ctx := req.Context()
 
-	// Select target cluster
-	clusterName, clusterEndpoint, err := r.selectCluster()
+	// Select target (cluster or external provider)
+	target, err := r.selectTarget(ctx)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("No available clusters: %v", err), http.StatusServiceUnavailable)
+		http.Error(w, fmt.Sprintf("No available targets: %v", err), http.StatusServiceUnavailable)
 		r.metrics.requestsTotal.WithLabelValues("none", "503").Inc()
 		return
 	}
 
-	// Forward request
-	err = r.forwarder.Forward(w, req, clusterName, clusterEndpoint+endpoint)
+	// Forward request based on target type
+	if target.Type == "cluster" {
+		// Forward to cluster
+		err = r.forwarder.Forward(w, req, target.Name, target.Endpoint+endpoint)
+	} else if target.Type == "provider" {
+		// Forward to external provider
+		err = target.Provider.Forward(ctx, w, req, endpoint)
+		
+		// Record external API request
+		status := "success"
+		if err != nil {
+			status = "error"
+		}
+		r.metrics.externalAPIRequests.WithLabelValues(target.Name, "unknown", status).Inc()
+	}
 
 	// Record metrics
 	duration := time.Since(start).Seconds()
-	r.metrics.requestDuration.WithLabelValues(clusterName).Observe(duration)
+	r.metrics.requestDuration.WithLabelValues(target.Name).Observe(duration)
 
 	if err != nil {
-		logrus.Errorf("Failed to forward request to %s: %v", clusterName, err)
-		r.metrics.requestsTotal.WithLabelValues(clusterName, "error").Inc()
+		logrus.Errorf("Failed to forward request to %s (%s): %v", target.Name, target.Type, err)
+		r.metrics.requestsTotal.WithLabelValues(target.Name, "error").Inc()
 	} else {
-		r.metrics.requestsTotal.WithLabelValues(clusterName, "success").Inc()
+		r.metrics.requestsTotal.WithLabelValues(target.Name, "success").Inc()
 	}
 }
 
 func (r *Router) healthHandler(w http.ResponseWriter, req *http.Request) {
 	healthyCount := len(r.healthChecker.GetHealthyMetrics())
+	
+	// Count healthy external providers
+	ctx := req.Context()
+	healthyProviders := 0
+	for _, provider := range r.providerManager.GetAllProviders() {
+		if err := provider.Health(ctx); err == nil {
+			healthyProviders++
+		}
+	}
 
 	status := map[string]interface{}{
-		"status":           "healthy",
-		"healthy_clusters": healthyCount,
-		"total_clusters":   len(r.config.Clusters),
-		"timestamp":        time.Now().Format(time.RFC3339),
+		"status":            "healthy",
+		"healthy_clusters":  healthyCount,
+		"total_clusters":    len(r.config.Clusters),
+		"healthy_providers": healthyProviders,
+		"total_providers":   len(r.config.ExternalProviders),
+		"timestamp":         time.Now().Format(time.RFC3339),
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -324,8 +569,10 @@ func (r *Router) updateMetrics(ctx context.Context) {
 }
 
 func (r *Router) refreshMetrics() {
+	ctx := context.Background()
 	allMetrics := r.healthChecker.GetAllMetrics()
 
+	// Update cluster metrics
 	for _, cluster := range r.config.Clusters {
 		metrics, exists := allMetrics[cluster.Name]
 
@@ -340,6 +587,23 @@ func (r *Router) refreshMetrics() {
 		if exists && metrics.TokensPerSecond > 0 {
 			cost := r.costEngine.CalculateCostPer1KTokens(cluster.Name, metrics.TokensPerSecond)
 			r.metrics.clusterCost.WithLabelValues(cluster.Name, cluster.Provider, cluster.Region).Set(cost)
+		}
+	}
+
+	// Update external provider metrics
+	for _, provider := range r.providerManager.GetAllProviders() {
+		// Update health metric
+		if err := provider.Health(ctx); err == nil {
+			r.metrics.providerHealth.WithLabelValues(provider.Name(), "external").Set(1)
+		} else {
+			r.metrics.providerHealth.WithLabelValues(provider.Name(), "external").Set(0)
+		}
+
+		// Update cost metrics for each model
+		pricing := provider.GetModelPricing()
+		for model, modelPricing := range pricing {
+			avgCost := (modelPricing.InputPricePer1K + modelPricing.OutputPricePer1K) / 2
+			r.metrics.providerCost.WithLabelValues(provider.Name(), model).Set(avgCost)
 		}
 	}
 }
@@ -385,6 +649,12 @@ func loadConfig(filename string) (*Config, error) {
 	}
 	if config.Router.MetricsUpdateInterval == 0 {
 		config.Router.MetricsUpdateInterval = 30 * time.Second
+	}
+	if config.Router.RoutingStrategy == "" {
+		config.Router.RoutingStrategy = "hybrid"
+	}
+	if config.Router.ClusterCostThreshold == 0 {
+		config.Router.ClusterCostThreshold = 0.01
 	}
 
 	return &config, nil

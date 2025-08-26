@@ -4,8 +4,6 @@
 *.dll
 *.so
 *.dylib
-router
-llm-router
 
 # Test binary, built with `go test -c`
 *.test

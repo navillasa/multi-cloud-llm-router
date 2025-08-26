@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
@@ -30,6 +29,15 @@ type Config struct {
 	Clusters          []ClusterConfig                `yaml:"clusters"`
 	ExternalProviders []providers.ProviderConfig     `yaml:"externalProviders"`
 	Router            RouterConfig                   `yaml:"router"`
+	Demo              DemoConfig                     `yaml:"demo"`
+}
+
+// DemoConfig holds demo-specific configuration
+type DemoConfig struct {
+	Enabled        bool          `yaml:"enabled"`
+	Password       string        `yaml:"password"`
+	SessionTimeout time.Duration `yaml:"sessionTimeout"`
+	RateLimitPerIP int           `yaml:"rateLimitPerIP"`
 }
 
 type ServerConfig struct {
@@ -61,6 +69,10 @@ type RouterConfig struct {
 	RoutingStrategy          string        `yaml:"routingStrategy"`
 	EnableExternalFallback   bool          `yaml:"enableExternalFallback"`
 	ClusterCostThreshold     float64       `yaml:"clusterCostThreshold"`
+	EnableSmartMocking       bool          `yaml:"enableSmartMocking"`
+	MonthlyAPIBudget         float64       `yaml:"monthlyAPIBudget"`
+	MockClusterLatency       int           `yaml:"mockClusterLatency"`
+	MockClusterCost          float64       `yaml:"mockClusterCost"`
 }
 
 // Router holds the main application state
@@ -245,6 +257,11 @@ func (r *Router) Start(ctx context.Context) error {
 
 	// Metrics endpoint
 	router.Handle("/metrics", promhttp.Handler()).Methods("GET")
+
+	// Demo authentication endpoint
+	if r.config.Demo.Enabled {
+		router.HandleFunc("/api/auth", r.authHandler).Methods("POST")
+	}
 
 	// LLM API endpoints
 	api := router.PathPrefix("/v1").Subrouter()
@@ -526,6 +543,32 @@ func (r *Router) handleLLMRequest(w http.ResponseWriter, req *http.Request, endp
 		r.metrics.requestsTotal.WithLabelValues(target.Name, "error").Inc()
 	} else {
 		r.metrics.requestsTotal.WithLabelValues(target.Name, "success").Inc()
+	}
+}
+
+func (r *Router) authHandler(w http.ResponseWriter, req *http.Request) {
+	if !r.config.Demo.Enabled {
+		http.Error(w, "Demo mode not enabled", http.StatusNotFound)
+		return
+	}
+
+	var authReq struct {
+		Password string `json:"password"`
+	}
+
+	if err := json.NewDecoder(req.Body).Decode(&authReq); err != nil {
+		http.Error(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+
+	if authReq.Password == r.config.Demo.Password {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": true,
+			"token":   "demo-session", // In production, use proper JWT
+		})
+	} else {
+		http.Error(w, "Invalid password", http.StatusUnauthorized)
 	}
 }
 

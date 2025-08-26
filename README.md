@@ -15,8 +15,6 @@ This demo showcases the **high-level routing architecture and algorithms** with 
 - **Professional Architecture** - SSL, monitoring, containerized microservices
 - **A Very Cost-Effective Demo** (~$10/month vs $200+/month for full multi-cloud)
 
-![Router Dashboard](docs/images/router-dashboard.png)
-
 *For guide to production deployment with k8s, see [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)*
 
 ## 🌍 Key Features
@@ -67,6 +65,8 @@ This demo showcases the **high-level routing architecture and algorithms** with 
 ```
 
 ## 🧠 Routing Strategies
+
+![Router Dashboard](docs/images/router-dashboard.png)
 
 ### 1. Hybrid (Recommended)
 - **Cheap requests** (< $0.01/1K tokens): Route to self-hosted clusters

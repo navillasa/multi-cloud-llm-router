@@ -5,14 +5,17 @@ server:
   idleTimeout: 60s
 
 router:
-  routingStrategy: smart_hybrid
+  stickinessWindow: 60s
   healthCheckInterval: 30s
+  maxLatencyMs: 5000
+  maxQueueDepth: 10
+  overheadFactor: 1.1
+  metricsUpdateInterval: 30s
+  routingStrategy: hybrid
   enableExternalFallback: true
   clusterCostThreshold: 0.01
-  demoMode: true
-  apiRateLimit: 100
 
-# Mock clusters for smart demo
+# Mock clusters for demo
 clusters:
   - name: aws-demo-cluster
     endpoint: https://demo.aws.cluster
@@ -21,92 +24,51 @@ clusters:
     costPerHour: 0.05
     authType: hmac
     sharedSecret: demo-secret
-    models:
-      - llama-3-8b
-      - llama-3-70b
     
   - name: gcp-demo-cluster
     endpoint: https://demo.gcp.cluster
     region: us-central1
     provider: gcp
     costPerHour: 0.04
-    authType: oauth
-    models:
-      - gemma-7b
-      - palm-2
+    authType: hmac
+    sharedSecret: demo-secret
 
   - name: azure-demo-cluster
     endpoint: https://demo.azure.cluster
     region: eastus
     provider: azure
     costPerHour: 0.06
-    authType: azure_ad
-    models:
-      - phi-3-mini
-      - phi-3-medium
+    authType: hmac
+    sharedSecret: demo-secret
 
-# Real external providers with budget controls
+# External providers
 externalProviders:
   - name: openai
     type: openai
     enabled: true
     apiKey: "${OPENAI_API_KEY}"
-    baseURL: "https://api.openai.com/v1"
-    models:
-      - gpt-3.5-turbo
-      - gpt-4
-      - gpt-4-turbo
-    costPerToken: 0.000002
-    budgetLimit: 5.00
+    defaultModel: gpt-3.5-turbo
+    rateLimit:
+      requestsPerMinute: 3500
+      tokensPerMinute: 90000
+      burstMultiplier: 1.5
 
-  - name: anthropic
-    type: anthropic
+  - name: claude
+    type: claude
     enabled: true
     apiKey: "${ANTHROPIC_API_KEY}"
-    baseURL: "https://api.anthropic.com"
-    models:
-      - claude-3-haiku
-      - claude-3-sonnet
-      - claude-3-opus
-    costPerToken: 0.000003
-    budgetLimit: 5.00
-
+    defaultModel: claude-3-haiku-20240307
+    rateLimit:
+      requestsPerMinute: 1000
+      tokensPerMinute: 100000
+      burstMultiplier: 1.2
+      
   - name: gemini
-    type: google
+    type: gemini
     enabled: true
     apiKey: "${GEMINI_API_KEY}"
-    baseURL: "https://generativelanguage.googleapis.com/v1"
-    models:
-      - gemini-pro
-      - gemini-pro-vision
-    costPerToken: 0.000001
-    budgetLimit: 5.00
-
-# Demo configuration
-demo:
-  enabled: true
-  password: "${DEMO_PASSWORD}"
-  sessionTimeout: 24h
-  rateLimitPerIP: 100
-  mockResponseDelay: 500ms
-  smartRoutingEnabled: true
-  budgetTrackingEnabled: true
-
-# Metrics and monitoring
-metrics:
-  enabled: true
-  port: 8081
-  path: /metrics
-  
-logging:
-  level: info
-  format: json
-  enableRequestLogging: true
-
-# Cost optimization settings
-costOptimization:
-  enabled: true
-  targetCostPerRequest: 0.001
-  maxExternalAPIUsage: 20
-  intelligentRouting: true
-  mockFallbackEnabled: true
+    defaultModel: gemini-1.5-flash
+    rateLimit:
+      requestsPerMinute: 1500
+      tokensPerMinute: 32000
+      burstMultiplier: 1.3

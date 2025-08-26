@@ -71,7 +71,7 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./deployment/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./deployment/nginx-demo.conf:/etc/nginx/nginx.conf:ro
       - ./deployment/ssl:/etc/nginx/ssl:ro
       - certbot_data:/var/www/certbot
     restart: unless-stopped

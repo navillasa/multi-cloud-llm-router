@@ -1,17 +1,19 @@
 # Multi-Cloud LLM Router
 
-A cost-optimized, latency-aware router that intelligently distributes LLM requests across self-hosted clusters and external providers (OpenAI, Claude, Gemini). Automatically routes between your CPU-only llama.cpp servers and premium APIs based on cost, latency, and capability requirements.
+A cost-optimized, latency-aware router that intelligently distributes LLM requests across self-hosted clusters and external providers (OpenAI, Claude, Gemini). Automatically routes between external premium APIS and CPU-only llama.cpp servers running on Kubernetes in AWS, GCP, and Azure based on cost, latency, and capability requirements.
 
-## 🎪 **Live Demo**
-
+## 🎪 **Live Demo (Simulated)**
+![Router Homepage](docs/images/homepage.png)
 **Try it now:** [https://mini.multicloud.navillasa.dev](https://mini.multicloud.navillasa.dev)  
 **Password:** `demo123`
 
 ### What You'll See:
 - **Interactive LLM Playground** - Test different prompts and see routing decisions in real-time
 - **Smart Routing Logic** - Simple prompts route to "cost-optimized clusters", complex ones to "external APIs"  
-- **Live Metrics Dashboard** - Real-time cost calculations, routing decisions, and savings
+- **Live Metrics Dashboard** - Cost calculations, routing decisions, and savings
 - **Professional Architecture** - SSL, monitoring, containerized microservices
+
+![Router Dashboard](docs/images/router-dashboard.png)
 
 ### Demo Strategy:
 This demo showcases the **complete routing architecture and algorithms** with controlled costs:
@@ -23,19 +25,19 @@ This demo showcases the **complete routing architecture and algorithms** with co
 
 *For guide to production deployment with k8s, see [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)*
 
-## ✨ Key Features
+## 🌍 Key Features
 
-- 🏗️ **Hybrid Architecture**: Routes between self-hosted clusters (AWS/GCP/Azure) and external LLM APIs
-- 💰 **Cost-Aware Routing**: Real-time $/1K token calculations with configurable thresholds
-- 🌍 **Multi-Cloud Redundancy**: Deploys across AWS EKS, GCP GKE, and Azure AKS
-- 🚀 **External Provider Support**: OpenAI, Anthropic Claude, Google Gemini integration
-- 🔄 **Intelligent Fallback**: Automatic failover between self-hosted and external providers
-- 📊 **Comprehensive Monitoring**: Prometheus metrics for cost, latency, and routing decisions
-- ⚡ **Auto-Scaling**: HPA based on CPU utilization and queue depth
-- 🔐 **Secure Authentication**: HMAC and mTLS support for cluster communication
-- 🎯 **Multiple Routing Strategies**: Cost, latency, hybrid, and capability-based routing
+- **Hybrid Architecture**: Routes between self-hosted clusters (AWS/GCP/Azure) and external LLM APIs
+- **Cost-Aware Routing**: Real-time $/1K token calculations with configurable thresholds
+- **Multi-Cloud Redundancy**: Deploys across AWS EKS, GCP GKE, and Azure AKS
+- **External Provider Support**: OpenAI, Anthropic Claude, Google Gemini integration
+- **Intelligent Fallback**: Automatic failover between self-hosted and external providers
+- **Comprehensive Monitoring**: Prometheus metrics for cost, latency, and routing decisions
+- **Auto-Scaling**: HPA based on CPU utilization and queue depth
+- **Secure Authentication**: HMAC and mTLS support for cluster communication
+- **Multiple Routing Strategies**: Cost, latency, hybrid, and capability-based routing
 
-## 🏛️ Architecture
+## Architecture
 
 ### Hybrid Routing Architecture
 ```
@@ -48,7 +50,7 @@ This demo showcases the **complete routing architecture and algorithms** with co
 │ Clusters    │ (OpenAI/Claude) │
 └─────────────┴─────────────────┘
     ↓              ↓
-[Your tiny LLMs]  [Premium LLMs]
+ [LLMs]         [LLMs]
 ```
 
 ### Multi-Cloud Infrastructure
@@ -71,6 +73,8 @@ This demo showcases the **complete routing architecture and algorithms** with co
 ```
 
 ## 🎯 Routing Strategies
+
+![Prompt Analysis](docs/images/prompt-analysis.png)
 
 ### 1. Hybrid (Recommended)
 - **Cheap requests** (< $0.01/1K tokens): Route to self-hosted clusters
@@ -379,7 +383,7 @@ wget https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/
 llama-cpp-server --model tinyllama-1.1b-chat-v1.0.q4_k_m.gguf --port 8081 --host 0.0.0.0
 ```
 
-## 🎯 Use Cases
+## 🥽 Use Cases
 
 ### 1. Cost-Conscious Development
 - **Route simple queries** (code completion, basic Q&A) → Your clusters
@@ -401,25 +405,6 @@ llama-cpp-server --model tinyllama-1.1b-chat-v1.0.q4_k_m.gguf --port 8081 --host
 - **Peak load**: External providers absorb spikes
 - **Auto-scaling**: Dynamic routing based on queue depth
 
-## 💰 Cost Calculation
-
-### Self-Hosted Clusters
-```
-Cost per 1K tokens = (node_hourly_cost / tokens_per_second / 3600) * overhead_factor
-```
-
-- `node_hourly_cost`: Static cloud pricing per node
-- `tokens_per_second`: Live throughput from llama.cpp metrics
-- `overhead_factor`: Safety margin for idle time (default 1.1)
-
-### External Providers
-```
-Cost = (input_tokens * input_price_per_1k / 1000) + 
-       (output_tokens * output_price_per_1k / 1000)
-```
-
-Uses real-time pricing from provider API documentation.
-
 ## 🔐 Authentication
 
 ### Cluster Authentication
@@ -431,28 +416,6 @@ Uses real-time pricing from provider API documentation.
 - **Rate Limiting**: Configurable rate limits per provider
 
 ## 🛟 Troubleshooting
-
-### Common Issues
-
-1. **Router can't connect to clusters**
-   - Check cluster endpoints are accessible
-   - Verify authentication configuration (HMAC secrets, mTLS certs)
-   - Check firewall rules and network connectivity
-
-2. **High latency routing decisions**
-   - Increase health check interval
-   - Check cluster response times
-   - Review cost calculation overhead
-
-3. **No healthy targets**
-   - Check both cluster health endpoints and external provider API keys
-   - Verify configuration syntax
-   - Review router logs for detailed errors
-
-4. **External provider authentication failures**
-   - Verify API keys are set correctly in environment variables
-   - Check API key permissions and rate limits
-   - Review provider-specific configuration
 
 ### Debug Mode
 
@@ -474,22 +437,19 @@ curl http://localhost:8080/metrics | grep provider_health
 curl http://localhost:8080/metrics | grep cost_per_1k_tokens
 ```
 
-## 🚀 Benefits
+## ✨ Benefits
 
-✅ **Cost Optimization**: Use cheap self-hosted for simple tasks, premium APIs for complex ones  
-✅ **High Availability**: Automatic failover between self-hosted and external providers  
-✅ **Capability Scaling**: Access to more powerful models when needed  
-✅ **Geographic Coverage**: External APIs handle regions without your clusters  
-✅ **Load Distribution**: External providers absorb traffic spikes  
-✅ **Vendor Diversification**: Reduce dependency on single LLM provider  
-✅ **Multi-Cloud Redundancy**: Deploy across AWS, GCP, and Azure  
-✅ **Real-Time Cost Tracking**: Monitor and optimize LLM spending  
+**Cost Optimization**: Use cheap self-hosted for simple tasks, premium APIs for complex ones  
+**High Availability**: Automatic failover between self-hosted and external providers  
+**Capability Scaling**: Access to more powerful models when needed  
+**Geographic Coverage**: External APIs handle regions without your clusters  
+**Load Distribution**: External providers absorb traffic spikes  
+**Vendor Diversification**: Reduce dependency on single LLM provider  
+**Multi-Cloud Redundancy**: Deploy across AWS, GCP, and Azure  
+**Real-Time Cost Tracking**: Monitor and optimize LLM spending  
 
 ## 🛣️ Roadmap
 
-- [ ] Implement GCP and Azure infrastructure
-- [ ] Add request-specific routing hints
-- [ ] Implement model-specific routing rules
 - [ ] Add request caching layer
 - [ ] Implement circuit breaker pattern
 - [ ] Add OpenTelemetry tracing
@@ -498,19 +458,10 @@ curl http://localhost:8080/metrics | grep cost_per_1k_tokens
 - [ ] A/B testing capabilities
 - [ ] Webhook support for routing decisions
 
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests
-5. Run `go fmt` and `go vet`
-6. Submit a pull request
-
-## 📄 License
-
-[Your License Here]
-
 ---
 
-**Ready to optimize your LLM costs while maintaining high availability and capability?** Start with the hybrid routing approach and scale from there!
+## 📞 **Contact**
+
+- 📧 **Email**: navillasa.dev@gmail.com
+- 💼 **LinkedIn**: [linkedin.com/in/natalievillasana](https://www.linkedin.com/in/natalievillasana)
+- 🌐 **Portfolio**: [navillasa.dev](https://navillasa.dev)

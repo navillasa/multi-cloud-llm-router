@@ -431,14 +431,14 @@ curl http://localhost:8080/metrics | grep cost_per_1k_tokens
 
 ## ✨ Benefits
 
-**Cost Optimization**: Use cheap self-hosted for simple tasks, premium APIs for complex ones  
-**High Availability**: Automatic failover between self-hosted and external providers  
-**Capability Scaling**: Access to more powerful models when needed  
-**Geographic Coverage**: External APIs handle regions without your clusters  
-**Load Distribution**: External providers absorb traffic spikes  
-**Vendor Diversification**: Reduce dependency on single LLM provider  
-**Multi-Cloud Redundancy**: Deploy across AWS, GCP, and Azure  
-**Real-Time Cost Tracking**: Monitor and optimize LLM spending  
+- **Cost Optimization**: Use cheap self-hosted for simple tasks, premium APIs for complex ones  
+- **High Availability**: Automatic failover between self-hosted and external providers  
+- **Capability Scaling**: Access to more powerful models when needed  
+- **Geographic Coverage**: External APIs handle regions without your clusters  
+- **Load Distribution**: External providers absorb traffic spikes  
+- **Vendor Diversification**: Reduce dependency on single LLM provider  
+- **Multi-Cloud Redundancy**: Deploy across AWS, GCP, and Azure  
+- **Real-Time Cost Tracking**: Monitor and optimize LLM spending  
 
 ## 🛣️ Roadmap
 

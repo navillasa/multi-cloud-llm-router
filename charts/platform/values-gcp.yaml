@@ -1,0 +1,30 @@
+# GCP-specific overrides
+ingressNginx:
+  controller:
+    service:
+      annotations:
+        cloud.google.com/load-balancer-type: "External"
+        networking.gke.io/load-balancer-type: "External"
+
+prometheus:
+  prometheus:
+    prometheusSpec:
+      storageSpec:
+        volumeClaimTemplate:
+          spec:
+            storageClassName: standard-rwo
+  
+  grafana:
+    persistence:
+      storageClassName: standard-rwo
+      
+  alertmanager:
+    alertmanagerSpec:
+      storage:
+        volumeClaimTemplate:
+          spec:
+            storageClassName: standard-rwo
+
+cloud:
+  provider: gcp
+  region: us-central1

@@ -1,0 +1,65 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: llm-server-values
+data:
+  values.yaml: |
+    image:
+      repository: ghcr.io/ggerganov/llama.cpp
+      tag: server
+      pullPolicy: IfNotPresent
+
+    model:
+      uri: "https://huggingface.co/microsoft/DialoGPT-medium/resolve/main/pytorch_model.bin"
+      path: "/models/model.gguf"
+      storageClass: "standard-rwo"
+      storageSize: "10Gi"
+
+    llamacpp:
+      host: "0.0.0.0"
+      port: 8080
+      ngl: 0
+      ctx_size: 2048
+      parallel: 4
+      embedding: true
+      flash_attn: false
+
+    ingress:
+      enabled: true
+      className: "nginx"
+      annotations:
+        cert-manager.io/cluster-issuer: "letsencrypt-prod"
+        nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+        nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+        nginx.ingress.kubernetes.io/limit-connections: "10"
+      hosts:
+        - host: gcp.llm.yourdomain.com
+          paths:
+            - path: /
+              pathType: Prefix
+      tls:
+        - secretName: llm-server-tls
+          hosts:
+            - gcp.llm.yourdomain.com
+
+    resources:
+      limits:
+        cpu: 4000m
+        memory: 6Gi
+      requests:
+        cpu: 2000m
+        memory: 4Gi
+
+    autoscaling:
+      enabled: true
+      minReplicas: 0
+      maxReplicas: 4
+      targetCPUUtilizationPercentage: 65
+
+    cloud:
+      provider: "gcp"
+      region: "us-central1"
+      costPerHour: 0.0475
+
+    serviceMonitor:
+      enabled: true

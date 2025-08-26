@@ -2,6 +2,24 @@
 
 A cost-optimized, latency-aware router that intelligently distributes LLM requests across self-hosted clusters and external providers (OpenAI, Claude, Gemini). Automatically routes between your CPU-only llama.cpp servers and premium APIs based on cost, latency, and capability requirements.
 
+## 🎪 **Live Demo**
+
+**Try it now:** [https://mini.multicloud.navillasa.dev](https://mini.multicloud.navillasa.dev)  
+**Password:** `demo123`
+
+### What You'll See:
+- **Interactive LLM Playground** - Test different prompts and see routing decisions in real-time
+- **Smart Routing Logic** - Simple prompts route to "cost-optimized clusters", complex ones to "external APIs"  
+- **Live Metrics Dashboard** - Real-time cost calculations, routing decisions, and savings
+- **Professional Architecture** - SSL, monitoring, containerized microservices
+
+### Demo vs. Production:
+- ✅ **Real routing logic, metrics, and architecture**
+- 🎭 **Mocked LLM responses** (no external API costs)
+- 🎭 **Simulated clusters** (shows cost savings without real infrastructure)
+
+*For production deployment, see the K8s setup below.*
+
 ## ✨ Key Features
 
 - 🏗️ **Hybrid Architecture**: Routes between self-hosted clusters (AWS/GCP/Azure) and external LLM APIs

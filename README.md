@@ -9,11 +9,11 @@ A cost-optimized, latency-aware router that intelligently distributes LLM reques
 ### What You'll See:
 This demo showcases the **high-level routing architecture and algorithms** with controlled costs:
 - **Interactive LLM Playground** - Test different prompts and see routing decisions in real-time
-- **Smart mocking** due to expensive operations (external API calls, full cluster deployments)
+- **Smart Mocking** due to expensive operations (external API calls, full cluster deployments)
 - **Routing Logic** - Simple prompts route to "cost-optimized clusters", complex ones to "external APIs"  
 - **Metrics Dashboard** - Cost calculations, routing decisions, and savings
 - **Professional Architecture** - SSL, monitoring, containerized microservices
-- **A very cost-effective demo** (~$10/month vs $200+/month for full multi-cloud)
+- **A Very Cost-Effective Demo** (~$10/month vs $200+/month for full multi-cloud)
 
 ![Router Dashboard](docs/images/router-dashboard.png)
 

@@ -1,0 +1,186 @@
+# Cost-Optimized values for LLM server deployment
+# Designed for t3.small spot instances (2 vCPU, 2GB RAM)
+
+replicaCount: 1
+
+image:
+  repository: ghcr.io/ggerganov/llama.cpp
+  tag: server
+  pullPolicy: IfNotPresent
+
+# Model configuration - TinyLlama for ultra-low cost
+model:
+  # TinyLlama 1.1B quantized - only ~637MB download
+  uri: "https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.q4_k_m.gguf"
+  path: "/models/tinyllama.gguf"
+  storageClass: "gp2"  # AWS default
+  storageSize: "3Gi"   # Minimal storage for tiny model
+
+# llama.cpp server configuration optimized for t3.small
+llamacpp:
+  host: "0.0.0.0"
+  port: 8080
+  ngl: 0              # CPU only
+  ctx_size: 1024      # Smaller context to save memory
+  parallel: 2         # Conservative for 2GB RAM
+  embedding: true
+  flash_attn: false
+  extraArgs:
+    - "--threads"
+    - "2"             # Match vCPU count
+    - "--threads-batch"
+    - "2"
+    - "--mlock"       # Lock model in memory for performance
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 8080
+  targetPort: 8080
+
+# Ingress configuration - update with your domain
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"
+    nginx.ingress.kubernetes.io/limit-connections: "5"   # Conservative
+    nginx.ingress.kubernetes.io/limit-rps: "10"          # Rate limiting
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts:
+    - host: aws.llm.yourdomain.com  # CHANGE THIS TO YOUR DOMAIN
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: llm-server-tls
+      hosts:
+        - aws.llm.yourdomain.com     # CHANGE THIS TO YOUR DOMAIN
+
+# Resource limits for t3.small (2 vCPU, 2GB RAM)
+resources:
+  limits:
+    cpu: 1800m        # Leave 200m for system processes
+    memory: 1600Mi    # Leave 400Mi for system and buffers
+  requests:
+    cpu: 1000m        # Conservative request
+    memory: 1200Mi    # Reserve enough for model loading
+
+# HPA configuration for cost optimization
+autoscaling:
+  enabled: true
+  minReplicas: 0      # Scale to zero when idle
+  maxReplicas: 2      # Limited scaling for cost control
+  targetCPUUtilizationPercentage: 70
+  # Scale down faster to save costs
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 30
+    scaleUp:
+      stabilizationWindowSeconds: 60
+
+# Spot instance tolerations
+tolerations:
+  - key: "kubernetes.io/spot"
+    operator: "Equal"
+    value: "true"
+    effect: "NoSchedule"
+
+# Prefer spot instances
+nodeSelector:
+  kubernetes.io/arch: amd64
+  karpenter.sh/capacity-type: spot
+
+# Security context
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false  # llama.cpp needs write access for temp files
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+# Optimized health checks
+livenessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 120  # Model loading can take time
+  periodSeconds: 60         # Less frequent checks
+  timeoutSeconds: 10
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 60   # Wait for model to load
+  periodSeconds: 30
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+# ServiceMonitor for cost tracking
+serviceMonitor:
+  enabled: true
+  labels:
+    release: prometheus
+  interval: 60s       # Less frequent scraping to save resources
+  scrapeTimeout: 30s
+
+# Cloud configuration for cost calculation
+cloud:
+  provider: "aws"
+  region: "us-east-1"
+  instanceType: "t3.small"
+  costPerHour: 0.0208    # t3.small on-demand us-east-1
+  spotCostPerHour: 0.0104 # Typical 50% savings with spot
+  useSpot: true
+
+# Init container for model downloading - lighter image
+initContainer:
+  image:
+    repository: curlimages/curl
+    tag: latest
+    pullPolicy: IfNotPresent
+  resources:
+    limits:
+      cpu: 500m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+# Pod disruption budget for cost-optimized deployment
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 0     # Allow all pods to be disrupted (cost over availability)
+
+# Startup probe for slow model loading
+startupProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 30
+  periodSeconds: 30
+  timeoutSeconds: 10
+  failureThreshold: 6     # Up to 3 minutes for model loading
+
+# Environment variables for optimization
+env:
+  - name: LLAMA_NUMA
+    value: "false"        # t3.small is single-socket
+  - name: OMP_NUM_THREADS
+    value: "2"            # Match CPU count
+  - name: MALLOC_TRIM_THRESHOLD_
+    value: "65536"        # Reduce memory fragmentation

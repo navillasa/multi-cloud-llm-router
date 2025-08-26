@@ -1,0 +1,166 @@
+# Ultra-Cheap Configuration for Job Interviews and Demos
+# Absolute minimum resources while still being impressive
+
+replicaCount: 0  # Start scaled to zero
+
+image:
+  repository: ghcr.io/ggerganov/llama.cpp
+  tag: server
+  pullPolicy: IfNotPresent
+
+# Smallest possible model that still works
+model:
+  # OpenELM-270M - Apple's ultra-tiny model, only ~135MB
+  uri: "https://huggingface.co/apple/OpenELM-270M-Instruct/resolve/main/openelm-270m-instruct.q4_k_m.gguf"
+  path: "/models/openelm.gguf"
+  storageClass: "gp2"
+  storageSize: "1Gi"  # Minimal storage
+
+# llama.cpp optimized for absolute minimum resources
+llamacpp:
+  host: "0.0.0.0"
+  port: 8080
+  ngl: 0              # CPU only
+  ctx_size: 512       # Tiny context to save memory
+  parallel: 1         # Single request only
+  embedding: false    # Disable to save memory
+  flash_attn: false
+  extraArgs:
+    - "--threads"
+    - "1"             # Single thread
+    - "--threads-batch"
+    - "1"
+    - "--mlock"
+    - "--no-warmup"   # Skip warmup to start faster
+
+service:
+  type: ClusterIP
+  port: 8080
+
+# Disable ingress for ultra-cheap (access via port-forward)
+ingress:
+  enabled: false
+
+# Absolute minimum resources
+resources:
+  limits:
+    cpu: 500m         # Half a CPU
+    memory: 512Mi     # Half a GB
+  requests:
+    cpu: 200m         # Very conservative
+    memory: 256Mi
+
+# Aggressive auto-scaling
+autoscaling:
+  enabled: true
+  minReplicas: 0      # Scale to zero immediately when idle
+  maxReplicas: 1      # Never scale beyond 1
+  targetCPUUtilizationPercentage: 50
+  # Scale down super fast
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 30  # Scale down after 30s
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 15
+    scaleUp:
+      stabilizationWindowSeconds: 30
+
+# Spot instance tolerations
+tolerations:
+  - key: "kubernetes.io/spot"
+    operator: "Equal"
+    value: "true"
+    effect: "NoSchedule"
+  - key: "node.kubernetes.io/spot"
+    operator: "Exists"
+    effect: "NoSchedule"
+
+# Prefer cheapest nodes
+nodeSelector:
+  kubernetes.io/arch: amd64
+
+# No affinity - use whatever's available
+affinity: {}
+
+# Minimal security context
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  allowPrivilegeEscalation: false
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+
+# Fast health checks
+livenessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 30   # Faster startup
+  periodSeconds: 60         # Less frequent
+  timeoutSeconds: 5
+  failureThreshold: 2       # Fail faster
+
+readinessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 15
+  periodSeconds: 15
+  timeoutSeconds: 3
+  failureThreshold: 2
+
+# Disable monitoring to save resources
+serviceMonitor:
+  enabled: false
+
+# Ultra-cheap cloud config
+cloud:
+  provider: "aws"
+  region: "us-east-1"
+  instanceType: "t3.nano"         # Smallest instance
+  costPerHour: 0.0052            # t3.nano on-demand
+  spotCostPerHour: 0.0026        # 50% savings
+  useSpot: true
+
+# Minimal init container
+initContainer:
+  image:
+    repository: curlimages/curl
+    tag: latest
+    pullPolicy: IfNotPresent
+  resources:
+    limits:
+      cpu: 200m
+      memory: 128Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
+
+# No disruption budget - let it fail for cost savings
+podDisruptionBudget:
+  enabled: false
+
+# Fast startup
+startupProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+# Minimal environment
+env:
+  - name: LLAMA_NUMA
+    value: "false"
+  - name: OMP_NUM_THREADS
+    value: "1"
+
+# No persistent volumes for ultra-cheap
+persistence:
+  enabled: false  # Store model in emptyDir (will re-download on restart)

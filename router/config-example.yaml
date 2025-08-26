@@ -1,0 +1,114 @@
+# Multi-Cloud LLM Router Configuration Example
+# This configuration demonstrates both self-hosted clusters and external provider integration
+
+server:
+  port: 8080
+  readTimeout: 30s
+  writeTimeout: 120s
+  idleTimeout: 60s
+
+router:
+  stickinessWindow: 60s
+  healthCheckInterval: 30s
+  maxLatencyMs: 5000
+  maxQueueDepth: 10
+  overheadFactor: 1.1
+  metricsUpdateInterval: 30s
+  
+  # Routing strategies:
+  # - "cost": Always select cheapest option (cluster or external)
+  # - "latency": Prefer lowest latency (usually clusters)
+  # - "hybrid": Use clusters for cheap requests, external for expensive ones
+  # - "external_first": Prefer external providers, fallback to clusters
+  # - "cluster_first": Prefer self-hosted clusters, fallback to external
+  routingStrategy: hybrid
+  
+  # Fallback to external providers when clusters are unhealthy
+  enableExternalFallback: true
+  
+  # Use clusters for requests estimated under this cost ($/1K tokens)
+  # Above this threshold, consider external providers
+  clusterCostThreshold: 0.01
+
+# Self-hosted clusters (existing functionality)
+clusters:
+  - name: aws-us-west-2
+    endpoint: https://aws.llm.yourdomain.com
+    region: us-west-2
+    provider: aws
+    costPerHour: 0.0928  # t3.large on-demand price
+    authType: hmac
+    sharedSecret: your-shared-secret-here
+    
+  - name: gcp-us-central1
+    endpoint: https://gcp.llm.yourdomain.com
+    region: us-central1
+    provider: gcp
+    costPerHour: 0.0950  # n1-standard-2 price
+    authType: hmac
+    sharedSecret: your-shared-secret-here
+    
+  - name: azure-eastus
+    endpoint: https://azure.llm.yourdomain.com
+    region: eastus
+    provider: azure
+    costPerHour: 0.0968  # Standard_D2s_v3 price
+    authType: hmac
+    sharedSecret: your-shared-secret-here
+
+# External LLM providers (new functionality)
+externalProviders:
+  # OpenAI Configuration
+  - name: openai
+    type: openai
+    enabled: true
+    apiKey: "${OPENAI_API_KEY}"  # Set via environment variable
+    defaultModel: gpt-3.5-turbo   # Most cost-effective model
+    # baseURL: "https://api.openai.com"  # Optional: custom endpoint
+    rateLimit:
+      requestsPerMinute: 3500
+      tokensPerMinute: 90000
+      burstMultiplier: 1.5
+    
+  # Anthropic Claude Configuration
+  - name: claude
+    type: claude
+    enabled: true
+    apiKey: "${ANTHROPIC_API_KEY}"
+    defaultModel: claude-3-haiku-20240307  # Fastest, cheapest Claude model
+    rateLimit:
+      requestsPerMinute: 1000
+      tokensPerMinute: 100000
+      burstMultiplier: 1.2
+      
+  # Google Gemini Configuration  
+  - name: gemini
+    type: gemini
+    enabled: true
+    apiKey: "${GEMINI_API_KEY}"
+    defaultModel: gemini-1.5-flash  # Fast and cost-effective
+    rateLimit:
+      requestsPerMinute: 1500
+      tokensPerMinute: 32000
+      burstMultiplier: 1.3
+
+  # Example: High-capability models for complex tasks
+  - name: openai-premium
+    type: openai
+    enabled: false  # Enable when needed for complex tasks
+    apiKey: "${OPENAI_API_KEY}"
+    defaultModel: gpt-4-turbo
+    rateLimit:
+      requestsPerMinute: 500
+      tokensPerMinute: 10000
+      burstMultiplier: 1.2
+      
+  - name: claude-premium
+    type: claude
+    enabled: false  # Enable for complex reasoning tasks
+    apiKey: "${ANTHROPIC_API_KEY}"
+    defaultModel: claude-3-5-sonnet-20241022
+    rateLimit:
+      requestsPerMinute: 50
+      tokensPerMinute: 40000
+      burstMultiplier: 1.1

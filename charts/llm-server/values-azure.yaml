@@ -1,0 +1,23 @@
+# Azure-specific configuration for LLM server
+
+model:
+  uri: "https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.q4_k_m.gguf"
+  path: "/models/tinyllama.gguf"
+  storageClass: "managed-premium"
+  storageSize: "10Gi"
+
+ingress:
+  hosts:
+    - host: azure.llm.yourdomain.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: llm-server-tls-azure
+      hosts:
+        - azure.llm.yourdomain.com
+
+cloud:
+  provider: "azure"
+  region: "eastus"
+  costPerHour: 0.0416  # Standard_B2s SPOT instance price in eastus

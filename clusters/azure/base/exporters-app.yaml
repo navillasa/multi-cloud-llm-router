@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: exporters
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/navillasa/multi-cloud-llm-router.git
+    targetRevision: main
+    path: charts/exporters
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

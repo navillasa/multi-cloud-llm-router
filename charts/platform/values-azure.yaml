@@ -1,0 +1,30 @@
+# Azure-specific overrides
+ingressNginx:
+  controller:
+    service:
+      annotations:
+        service.beta.kubernetes.io/azure-load-balancer-internal: "false"
+        service.beta.kubernetes.io/azure-dns-label-name: "llm-router-azure"
+
+prometheus:
+  prometheus:
+    prometheusSpec:
+      storageSpec:
+        volumeClaimTemplate:
+          spec:
+            storageClassName: managed-premium
+  
+  grafana:
+    persistence:
+      storageClassName: managed-premium
+      
+  alertmanager:
+    alertmanagerSpec:
+      storage:
+        volumeClaimTemplate:
+          spec:
+            storageClassName: managed-premium
+
+cloud:
+  provider: azure
+  region: eastus

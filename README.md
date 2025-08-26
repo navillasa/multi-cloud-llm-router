@@ -8,20 +8,15 @@ A cost-optimized, latency-aware router that intelligently distributes LLM reques
 **Password:** `demo123`
 
 ### What You'll See:
+This demo showcases the **high-level routing architecture and algorithms** with controlled costs:
 - **Interactive LLM Playground** - Test different prompts and see routing decisions in real-time
-- **Smart Routing Logic** - Simple prompts route to "cost-optimized clusters", complex ones to "external APIs"  
-- **Live Metrics Dashboard** - Cost calculations, routing decisions, and savings
+- **Smart mocking** due to expensive operations (external API calls, full cluster deployments)
+- **Routing Logic** - Simple prompts route to "cost-optimized clusters", complex ones to "external APIs"  
+- **Metrics Dashboard** - Cost calculations, routing decisions, and savings
 - **Professional Architecture** - SSL, monitoring, containerized microservices
+- **A very cost-effective demo** (~$10/month vs $200+/month for full multi-cloud)
 
 ![Router Dashboard](docs/images/router-dashboard.png)
-
-### Demo Strategy:
-This demo showcases the **complete routing architecture and algorithms** with controlled costs:
-- **Real routing logic, metrics, and architecture**
-- **Actual cost calculation algorithms**
-- **Live monitoring and dashboards**
-- **Smart mocking** for expensive operations (external API calls, full cluster deployments)
-- **Cost-effective demonstration** (~$20/month vs $200+/month for full multi-cloud)
 
 *For guide to production deployment with k8s, see [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)*
 

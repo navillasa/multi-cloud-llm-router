@@ -66,9 +66,7 @@ This demo showcases the **high-level routing architecture and algorithms** with 
                  [Router cost engine]
 ```
 
-## 🎯 Routing Strategies
-
-![Prompt Analysis](docs/images/prompt-analysis.png)
+## 🧠 Routing Strategies
 
 ### 1. Hybrid (Recommended)
 - **Cheap requests** (< $0.01/1K tokens): Route to self-hosted clusters

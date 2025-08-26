@@ -36,12 +36,10 @@ jobs:
         go mod tidy
         go test -v ./...
         go vet ./...
-    
-    - name: Test infrastructure
+        
+    - name: Validate Docker Compose
       run: |
-        cd infra/aws
-        go mod tidy
-        go vet ./...
+        docker-compose config
 
   lint-charts:
     runs-on: ubuntu-latest
@@ -53,19 +51,16 @@ jobs:
       with:
         version: '3.12.0'
     
-    - name: Lint Helm charts
+    - name: Lint Helm charts (for future use)
       run: |
         helm lint charts/llm-server
         helm lint charts/platform
         helm template test-release charts/llm-server --values charts/llm-server/values-aws.yaml
 
-  build-router:
+  build-demo-images:
     needs: test
     runs-on: ubuntu-latest
     if: github.event_name == 'push'
-    outputs:
-      image: ${{ steps.image.outputs.image }}
-      digest: ${{ steps.build.outputs.digest }}
     steps:
     - uses: actions/checkout@v4
     
@@ -79,66 +74,24 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
     
-    - name: Extract metadata
-      id: meta
-      uses: docker/metadata-action@v5
-      with:
-        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-        tags: |
-          type=ref,event=branch
-          type=ref,event=pr
-          type=sha,prefix={{branch}}-
-          type=raw,value=latest,enable={{is_default_branch}}
-    
-    - name: Build and push Docker image
-      id: build
+    - name: Build demo router image
       uses: docker/build-push-action@v5
       with:
         context: ./router
+        file: ./router/Dockerfile.smart-hybrid
         push: true
-        tags: ${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
+        tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:demo-latest
         cache-from: type=gha
         cache-to: type=gha,mode=max
-    
-    - name: Output image
-      id: image
-      run: |
-        echo "image=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }}" >> $GITHUB_OUTPUT
-
-  deploy-dev:
-    needs: [test, build-router, lint-charts]
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
-    environment: development
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Pulumi
-      uses: pulumi/actions@v4
+        
+    - name: Build frontend image
+      uses: docker/build-push-action@v5
       with:
-        command: preview
-        stack-name: dev
-        work-dir: infra/aws
-      env:
-        PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
-
-  deploy-prod:
-    needs: [test, build-router, lint-charts]
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    environment: production
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Pulumi
-      uses: pulumi/actions@v4
-      with:
-        command: up
-        stack-name: prod
-        work-dir: infra/aws
-      env:
-        PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+        context: ./frontend
+        push: true
+        tags: ${{ env.REGISTRY }}/${{ github.repository }}/frontend:demo-latest
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
 
   security-scan:
     runs-on: ubuntu-latest
@@ -158,3 +111,14 @@ jobs:
       if: always()
       with:
         sarif_file: 'trivy-results.sarif'
+
+  # Future: Deploy to demo server
+  # deploy-demo:
+  #   needs: [test, build-demo-images]
+  #   runs-on: ubuntu-latest
+  #   if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+  #   steps:
+  #   - name: Deploy to demo server
+  #     run: |
+  #       echo "Future: Deploy demo to VPS via docker-compose"
+  #       # ssh to demo server and docker-compose pull && docker-compose up -d

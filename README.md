@@ -2,7 +2,7 @@
 
 A cost-optimized, latency-aware router that intelligently distributes LLM requests across self-hosted clusters and external providers (OpenAI, Claude, Gemini). Automatically routes between external premium APIS and CPU-only llama.cpp servers running on Kubernetes in AWS, GCP, and Azure based on cost, latency, and capability requirements.
 
-## 🎪 **Live Demo (Simulated)**
+## 🎪 **Live Demo**
 ![Router Homepage](docs/images/homepage.png)
 **Try it now:** [https://mini.multicloud.navillasa.dev](https://mini.multicloud.navillasa.dev)  
 **Password:** `demo123`

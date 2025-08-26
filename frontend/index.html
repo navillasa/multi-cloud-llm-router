@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Cloud LLM Router - Live Demo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+</head>
+<body class="bg-gray-900 text-white">
+    <div x-data="demoApp()" class="min-h-screen">
+        <!-- Header -->
+        <header class="bg-gray-800 border-b border-gray-700">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between items-center py-6">
+                    <div>
+                        <h1 class="text-3xl font-bold text-blue-400">Multi-Cloud LLM Router</h1>
+                        <p class="text-gray-400">Intelligent cost-optimized LLM routing</p>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <div class="text-sm">
+                            <div class="flex items-center space-x-2">
+                                <div class="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                                <span>Live Demo</span>
+                            </div>
+                        </div>
+                        <button @click="showAuth = true" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                            Try Demo
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Auth Modal -->
+        <div x-show="showAuth" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-gray-800 p-8 rounded-lg max-w-md w-full mx-4">
+                <h2 class="text-2xl font-bold mb-4">Demo Access</h2>
+                <p class="text-gray-400 mb-6">Enter the demo password to try the interactive LLM router.</p>
+                <input x-model="password" @keyup.enter="authenticate()" type="password" placeholder="Demo password" 
+                       class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <div class="flex space-x-4">
+                    <button @click="authenticate()" class="flex-1 bg-blue-600 hover:bg-blue-700 py-2 rounded-lg font-medium">
+                        Access Demo
+                    </button>
+                    <button @click="showAuth = false" class="flex-1 bg-gray-600 hover:bg-gray-700 py-2 rounded-lg font-medium">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <!-- Overview Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                <div class="bg-gray-800 p-6 rounded-lg border border-gray-700">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-400">Total Requests</p>
+                            <p class="text-2xl font-bold text-blue-400" x-text="metrics.totalRequests"></p>
+                        </div>
+                        <div class="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-gray-800 p-6 rounded-lg border border-gray-700">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-400">Cost Saved</p>
+                            <p class="text-2xl font-bold text-green-400" x-text="'$' + metrics.costSaved.toFixed(3)"></p>
+                        </div>
+                        <div class="w-12 h-12 bg-green-600 rounded-lg flex items-center justify-center">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"></path>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-gray-800 p-6 rounded-lg border border-gray-700">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-400">Avg Latency</p>
+                            <p class="text-2xl font-bold text-yellow-400" x-text="metrics.avgLatency + 'ms'"></p>
+                        </div>
+                        <div class="w-12 h-12 bg-yellow-600 rounded-lg flex items-center justify-center">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-gray-800 p-6 rounded-lg border border-gray-700">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-400">Active Clusters</p>
+                            <p class="text-2xl font-bold text-purple-400" x-text="metrics.activeClusters"></p>
+                        </div>
+                        <div class="w-12 h-12 bg-purple-600 rounded-lg flex items-center justify-center">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Demo Playground -->
+            <div x-show="authenticated" class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                <!-- Chat Interface -->
+                <div class="bg-gray-800 rounded-lg border border-gray-700">
+                    <div class="p-6 border-b border-gray-700">
+                        <h2 class="text-xl font-bold text-blue-400">Interactive LLM Demo</h2>
+                        <p class="text-gray-400 text-sm mt-1">Try different prompts and see routing decisions</p>
+                    </div>
+                    
+                    <div class="p-6">
+                        <!-- Routing Strategy Selector -->
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-gray-300 mb-2">Routing Strategy</label>
+                            <select x-model="routingStrategy" class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white">
+                                <option value="hybrid">Hybrid (Cost + Capability)</option>
+                                <option value="cost">Cost First</option>
+                                <option value="latency">Latency First</option>
+                                <option value="external_first">External First</option>
+                                <option value="cluster_first">Cluster First</option>
+                            </select>
+                        </div>
+
+                        <!-- Chat Messages -->
+                        <div class="bg-gray-900 rounded-lg p-4 h-64 overflow-y-auto mb-4" x-ref="chatContainer">
+                            <template x-for="message in chatMessages" :key="message.id">
+                                <div class="mb-4">
+                                    <div x-show="message.role === 'user'" class="flex justify-end">
+                                        <div class="bg-blue-600 text-white px-4 py-2 rounded-lg max-w-xs">
+                                            <p x-text="message.content"></p>
+                                        </div>
+                                    </div>
+                                    <div x-show="message.role === 'assistant'" class="flex justify-start">
+                                        <div class="bg-gray-700 text-white px-4 py-2 rounded-lg max-w-xs">
+                                            <p x-text="message.content"></p>
+                                            <div x-show="message.metadata" class="mt-2 text-xs text-gray-400">
+                                                <div x-text="'Route: ' + (message.metadata?.provider || 'unknown')"></div>
+                                                <div x-text="'Cost: $' + (message.metadata?.cost || 0).toFixed(6)"></div>
+                                                <div x-text="'Latency: ' + (message.metadata?.latency || 0) + 'ms'"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+
+                        <!-- Input -->
+                        <div class="flex space-x-2">
+                            <input x-model="currentMessage" @keyup.enter="sendMessage()" 
+                                   placeholder="Try: 'Hello!' or 'Analyze the benefits of multi-cloud architecture'"
+                                   class="flex-1 bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white placeholder-gray-400">
+                            <button @click="sendMessage()" :disabled="loading" 
+                                    class="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-6 py-2 rounded-lg font-medium">
+                                <span x-show="!loading">Send</span>
+                                <span x-show="loading">...</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Real-time Metrics -->
+                <div class="bg-gray-800 rounded-lg border border-gray-700">
+                    <div class="p-6 border-b border-gray-700">
+                        <h2 class="text-xl font-bold text-green-400">Live Metrics</h2>
+                        <p class="text-gray-400 text-sm mt-1">Real-time routing decisions and costs</p>
+                    </div>
+                    
+                    <div class="p-6">
+                        <!-- Routing Distribution Chart -->
+                        <canvas id="routingChart" class="mb-6"></canvas>
+                        
+                        <!-- Recent Requests -->
+                        <div>
+                            <h3 class="font-semibold text-gray-300 mb-3">Recent Requests</h3>
+                            <div class="space-y-2">
+                                <template x-for="request in recentRequests" :key="request.id">
+                                    <div class="bg-gray-900 p-3 rounded border border-gray-700">
+                                        <div class="flex justify-between items-start">
+                                            <div class="flex-1">
+                                                <p class="text-sm text-gray-300" x-text="request.prompt.substring(0, 50) + '...'"></p>
+                                                <div class="flex items-center space-x-4 mt-1 text-xs text-gray-400">
+                                                    <span x-text="'→ ' + request.provider"></span>
+                                                    <span x-text="'$' + request.cost.toFixed(6)"></span>
+                                                    <span x-text="request.latency + 'ms'"></span>
+                                                </div>
+                                            </div>
+                                            <div :class="request.provider.includes('cluster') ? 'bg-green-600' : 'bg-blue-600'" 
+                                                 class="w-2 h-2 rounded-full"></div>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Architecture Overview -->
+            <div class="bg-gray-800 rounded-lg border border-gray-700 p-6">
+                <h2 class="text-2xl font-bold text-blue-400 mb-4">Architecture Overview</h2>
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <div class="text-center">
+                        <div class="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"></path>
+                            </svg>
+                        </div>
+                        <h3 class="text-lg font-semibold mb-2">Smart Router</h3>
+                        <p class="text-gray-400 text-sm">Analyzes requests and routes to optimal backend based on cost, latency, and capability requirements.</p>
+                    </div>
+                    
+                    <div class="text-center">
+                        <div class="w-16 h-16 bg-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+                            </svg>
+                        </div>
+                        <h3 class="text-lg font-semibold mb-2">Self-Hosted Clusters</h3>
+                        <p class="text-gray-400 text-sm">Cost-optimized Kubernetes clusters running tiny LLMs on CPU-only instances across AWS, GCP, and Azure.</p>
+                    </div>
+                    
+                    <div class="text-center">
+                        <div class="w-16 h-16 bg-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                            </svg>
+                        </div>
+                        <h3 class="text-lg font-semibold mb-2">External APIs</h3>
+                        <p class="text-gray-400 text-sm">Premium LLM providers (OpenAI, Claude, Gemini) for complex tasks requiring advanced capabilities.</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="bg-gray-800 border-t border-gray-700 mt-16">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                <div class="text-center">
+                    <p class="text-gray-400">Built by <span class="text-blue-400 font-medium">Your Name</span> • 
+                       <a href="https://github.com/yourname/multi-cloud-llm-router" class="text-blue-400 hover:text-blue-300">View Source</a></p>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        function demoApp() {
+            return {
+                showAuth: false,
+                authenticated: false,
+                password: '',
+                loading: false,
+                currentMessage: '',
+                routingStrategy: 'hybrid',
+                chatMessages: [],
+                metrics: {
+                    totalRequests: 1247,
+                    costSaved: 0.234,
+                    avgLatency: 285,
+                    activeClusters: 3
+                },
+                recentRequests: [
+                    { id: 1, prompt: "Hello, how are you?", provider: "aws-cluster", cost: 0.0001, latency: 150 },
+                    { id: 2, prompt: "Explain quantum computing", provider: "openai-gpt4", cost: 0.002, latency: 850 },
+                    { id: 3, prompt: "Simple greeting", provider: "gcp-cluster", cost: 0.0001, latency: 180 }
+                ],
+                chart: null,
+
+                async authenticate() {
+                    // For local demo, try router on localhost:8080, fallback to demo mode
+                    const apiUrls = ['http://localhost:8080/api/auth', '/api/auth'];
+                    
+                    for (const apiUrl of apiUrls) {
+                        try {
+                            const response = await fetch(apiUrl, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ password: this.password })
+                            });
+                            
+                            if (response.ok) {
+                                this.authenticated = true;
+                                this.showAuth = false;
+                                this.initChart();
+                                localStorage.setItem('demo_authenticated', 'true');
+                                return;
+                            }
+                        } catch (error) {
+                            console.log(`Auth failed for ${apiUrl}:`, error);
+                        }
+                    }
+                    
+                    // Fallback: demo mode passwords
+                    if (this.password.length >= 6) {
+                        this.authenticated = true;
+                        this.showAuth = false;
+                        this.initChart();
+                        alert('Demo mode activated (router not running)');
+                    } else {
+                        alert('Invalid password. Try the password from the local demo script.');
+                    }
+                },
+
+                async sendMessage() {
+                    if (!this.currentMessage.trim() || this.loading) return;
+                    
+                    const userMessage = {
+                        id: Date.now(),
+                        role: 'user',
+                        content: this.currentMessage
+                    };
+                    
+                    this.chatMessages.push(userMessage);
+                    this.loading = true;
+                    
+                    const prompt = this.currentMessage;
+                    this.currentMessage = '';
+                    
+                    // Try real API first, fall back to simulation
+                    try {
+                        const response = await this.callRealAPI(prompt) || await this.simulateAPICall(prompt);
+                        
+                        const assistantMessage = {
+                            id: Date.now() + 1,
+                            role: 'assistant',
+                            content: response.content,
+                            metadata: response.metadata
+                        };
+                        
+                        this.chatMessages.push(assistantMessage);
+                        
+                        // Update metrics
+                        this.metrics.totalRequests++;
+                        this.metrics.costSaved += response.metadata.cost;
+                        
+                        // Add to recent requests
+                        this.recentRequests.unshift({
+                            id: Date.now(),
+                            prompt: prompt,
+                            provider: response.metadata.provider,
+                            cost: response.metadata.cost,
+                            latency: response.metadata.latency
+                        });
+                        this.recentRequests = this.recentRequests.slice(0, 5);
+                        
+                        this.updateChart();
+                        
+                    } catch (error) {
+                        console.error('Error:', error);
+                    } finally {
+                        this.loading = false;
+                        this.$nextTick(() => {
+                            this.$refs.chatContainer.scrollTop = this.$refs.chatContainer.scrollHeight;
+                        });
+                    }
+                },
+
+                async callRealAPI(prompt) {
+                    try {
+                        const response = await fetch('/v1/chat/completions', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                model: 'gpt-3.5-turbo',
+                                messages: [{ role: 'user', content: prompt }],
+                                max_tokens: 150
+                            })
+                        });
+                        
+                        if (response.ok) {
+                            const data = await response.json();
+                            return {
+                                content: data.choices[0].message.content,
+                                metadata: data.metadata || {
+                                    provider: 'router',
+                                    cost: data.usage ? (data.usage.total_tokens * 0.0001) : 0.0001,
+                                    latency: 200 + Math.random() * 300
+                                }
+                            };
+                        }
+                    } catch (error) {
+                        console.log('Real API not available, using simulation');
+                        return null;
+                    }
+                },
+
+                async simulateAPICall(prompt) {
+                    // Simulate network delay
+                    await new Promise(resolve => setTimeout(resolve, 300 + Math.random() * 800));
+                    
+                    const isComplex = prompt.length > 50 || prompt.toLowerCase().includes('analyze') || prompt.toLowerCase().includes('explain');
+                    const isGreeting = /hello|hi |hey|greetings/i.test(prompt);
+                    
+                    let response, provider, cost, latency;
+                    
+                    if (this.routingStrategy === 'external_first' || (this.routingStrategy === 'hybrid' && isComplex)) {
+                        provider = 'openai-gpt3.5';
+                        cost = 0.002 + Math.random() * 0.008;
+                        latency = 800 + Math.random() * 400;
+                        response = isGreeting ? 
+                            "Hello! I'm GPT-3.5, routing from an external API." :
+                            "This response was generated by an external API (OpenAI GPT-3.5) for complex analysis tasks.";
+                    } else {
+                        provider = 'aws-cluster';
+                        cost = 0.0001 + Math.random() * 0.0005;
+                        latency = 150 + Math.random() * 200;
+                        response = isGreeting ?
+                            "Hi! I'm a tiny LLM running on a cost-optimized Kubernetes cluster." :
+                            "This response was generated by a self-hosted model running on AWS spot instances.";
+                    }
+                    
+                    return {
+                        content: response,
+                        metadata: {
+                            provider: provider,
+                            cost: cost,
+                            latency: Math.round(latency)
+                        }
+                    };
+                },
+
+                initChart() {
+                    const ctx = document.getElementById('routingChart').getContext('2d');
+                    this.chart = new Chart(ctx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: ['Self-Hosted Clusters', 'OpenAI', 'Claude', 'Gemini'],
+                            datasets: [{
+                                data: [65, 20, 10, 5],
+                                backgroundColor: ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b'],
+                                borderColor: '#374151',
+                                borderWidth: 2
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            plugins: {
+                                legend: {
+                                    position: 'bottom',
+                                    labels: {
+                                        color: '#d1d5db',
+                                        usePointStyle: true,
+                                        padding: 20
+                                    }
+                                }
+                            }
+                        }
+                    });
+                },
+
+                updateChart() {
+                    if (this.chart) {
+                        // Simulate updating the chart with new data
+                        this.chart.update();
+                    }
+                }
+            }
+        }
+    </script>
+</body>
+</html>

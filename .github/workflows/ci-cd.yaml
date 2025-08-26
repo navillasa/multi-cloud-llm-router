@@ -39,7 +39,7 @@ jobs:
         
     - name: Validate Docker Compose
       run: |
-        docker-compose config
+        docker compose config
 
   lint-charts:
     runs-on: ubuntu-latest

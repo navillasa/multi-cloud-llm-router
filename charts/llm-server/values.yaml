@@ -26,7 +26,7 @@ llamacpp:
   host: "0.0.0.0"
   # Port to bind to
   port: 8080
-  # Number of GPU layers (0 for CPU only)
+  # Number of GPU layers (0 for CPU only, -1 for all layers on GPU)
   ngl: 0
   # Context size
   ctx_size: 2048
@@ -34,10 +34,32 @@ llamacpp:
   parallel: 4
   # Enable embeddings endpoint
   embedding: true
-  # Disable flash attention for CPU
+  # Disable flash attention for CPU (enable for GPU)
   flash_attn: false
   # Additional arguments
   extraArgs: []
+
+# GPU configuration
+gpu:
+  # Enable GPU support
+  enabled: false
+  # GPU type per cloud provider
+  # AWS: nvidia.com/gpu, AMD: amd.com/gpu
+  # GCP: nvidia.com/gpu
+  # Azure: nvidia.com/gpu
+  resourceName: "nvidia.com/gpu"
+  # Number of GPUs to request
+  count: 1
+  # GPU node selector
+  nodeSelector:
+    accelerator: "nvidia-tesla-t4"  # Cloud-specific GPU types
+  # GPU tolerations
+  tolerations:
+    - key: "nvidia.com/gpu"
+      operator: "Exists"
+      effect: "NoSchedule"
+  # Runtime class for GPU containers (e.g., nvidia)
+  runtimeClassName: "nvidia"
 
 # Service configuration
 service:
@@ -72,9 +94,20 @@ resources:
   limits:
     cpu: 4000m
     memory: 6Gi
+    # GPU resources will be added conditionally based on gpu.enabled
   requests:
     cpu: 2000m
     memory: 4Gi
+
+# GPU-specific resource overrides (applied when gpu.enabled=true)
+gpuResources:
+  limits:
+    cpu: 8000m
+    memory: 16Gi
+    # nvidia.com/gpu: 1  # Added dynamically based on gpu.resourceName and gpu.count
+  requests:
+    cpu: 4000m
+    memory: 8Gi
 
 # HPA configuration
 autoscaling:

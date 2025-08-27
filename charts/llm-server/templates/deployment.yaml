@@ -20,6 +20,9 @@ spec:
       labels:
         {{- include "llm-server.selectorLabels" . | nindent 8 }}
     spec:
+      {{- if .Values.gpu.enabled }}
+      runtimeClassName: {{ .Values.gpu.runtimeClassName }}
+      {{- end }}
       {{- with .Values.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
@@ -83,9 +86,16 @@ spec:
             {{- if .Values.llamacpp.embedding }}
             - --embedding
             {{- end }}
+            {{- if .Values.gpu.enabled }}
+            {{- if .Values.llamacpp.flash_attn }}
+            - --flash-attn
+            - "true"
+            {{- end }}
+            {{- else }}
             {{- if not .Values.llamacpp.flash_attn }}
             - --flash-attn
             - "false"
+            {{- end }}
             {{- end }}
             {{- range .Values.llamacpp.extraArgs }}
             - {{ . }}
@@ -93,6 +103,10 @@ spec:
           env:
             - name: LLAMA_NUMA
               value: "true"
+            {{- if .Values.gpu.enabled }}
+            - name: CUDA_VISIBLE_DEVICES
+              value: "0"
+            {{- end }}
           volumeMounts:
             - name: model-storage
               mountPath: /models
@@ -101,7 +115,13 @@ spec:
           readinessProbe:
             {{- toYaml .Values.readinessProbe | nindent 12 }}
           resources:
+            {{- if .Values.gpu.enabled }}
+            {{- $gpuResources := deepCopy .Values.gpuResources }}
+            {{- $_ := set $gpuResources.limits .Values.gpu.resourceName .Values.gpu.count }}
+            {{- toYaml $gpuResources | nindent 12 }}
+            {{- else }}
             {{- toYaml .Values.resources | nindent 12 }}
+            {{- end }}
         - name: metrics-exporter
           image: prom/node-exporter:latest
           ports:
@@ -138,15 +158,29 @@ spec:
         - name: sys
           hostPath:
             path: /sys
+      {{- if .Values.gpu.enabled }}
+      {{- with .Values.gpu.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- else }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
+      {{- end }}
       {{- end }}
       {{- with .Values.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- if .Values.gpu.enabled }}
+      {{- with .Values.gpu.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- else }}
       {{- with .Values.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
+      {{- end }}
       {{- end }}

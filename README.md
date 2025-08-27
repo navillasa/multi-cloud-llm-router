@@ -28,6 +28,41 @@ This demo showcases the high-level routing architecture and algorithms with cont
 - **Auto-Scaling**: HPA based on CPU utilization and queue depth
 - **Secure Authentication**: HMAC and mTLS support for cluster communication
 - **Multiple Routing Strategies**: Cost, latency, hybrid, and capability-based routing
+- **GPU Support**: Optional GPU acceleration for larger models across all cloud providers
+
+## 🎮 GPU Acceleration Support
+
+**NEW!** The router now supports GPU-accelerated inference for demanding workloads:
+
+- **Multi-Cloud GPU**: NVIDIA Tesla T4 support on AWS, Azure, and GCP
+- **Cost-Optimized**: Spot/preemptible GPU instances with 60-80% savings
+- **Scale-to-Zero**: GPU nodes scale down when not needed
+- **Larger Models**: Automatic switch to Llama-2 7B for GPU workloads vs TinyLlama for CPU
+- **Smart Routing**: GPU routing for complex prompts requiring larger context
+
+### GPU Cost Comparison
+| Deployment Type | Monthly Cost | Use Case |
+|----------------|--------------|----------|
+| **CPU-Only** | ~$63/month | Simple tasks, cost optimization |
+| **GPU 24/7** | ~$466/month | High-performance inference |
+| **GPU Scale-to-Zero** | ~$100-200/month | **Recommended**: GPU on-demand |
+
+### Quick GPU Setup
+```bash
+# Enable GPU for AWS (Tesla T4, ~$114/month spot)
+kubectl apply -k clusters/aws/overlays/gpu/
+
+# Enable GPU for Azure (Tesla T4, ~$151/month spot)  
+kubectl apply -k clusters/azure/overlays/gpu/
+
+# Enable GPU for GCP (Tesla T4, ~$201/month preemptible)
+kubectl apply -k clusters/gcp/overlays/gpu/
+
+# Validate GPU configuration
+./scripts/validate-gpu.sh
+```
+
+📖 **Detailed GPU documentation**: [`docs/GPU_SUPPORT.md`](docs/GPU_SUPPORT.md)
 
 ## Architecture
 
@@ -53,10 +88,19 @@ This demo showcases the high-level routing architecture and algorithms with cont
           │              │                │
    HTTPS/mTLS      HTTPS/mTLS       HTTPS/mTLS
           │              │                │
-    AWS EKS (CPU)    GCP GKE (CPU)    Azure AKS (CPU)
+    AWS EKS          GCP GKE          Azure AKS
       │                │                  │
-[llama.cpp pods] [llama.cpp pods] [llama.cpp pods]
-  (gguf models)    (gguf models)     (gguf models)
+┌─CPU Nodes─┐    ┌─CPU Nodes─┐    ┌─CPU Nodes─┐
+│TinyLlama  │    │TinyLlama  │    │TinyLlama  │
+│~$21/month │    │~$21/month │    │~$21/month │
+└───────────┘    └───────────┘    └───────────┘
+      │                │                  │
+┌─GPU Nodes─┐    ┌─GPU Nodes─┐    ┌─GPU Nodes─┐
+│Tesla T4   │    │Tesla T4   │    │Tesla T4   │
+│Llama-2 7B │    │Llama-2 7B │    │Llama-2 7B │
+│~$114/month│    │~$201/month│    │~$151/month│
+│(optional) │    │(optional) │    │(optional) │
+└───────────┘    └───────────┘    └───────────┘
       │                │                  │
 [Prom + Exporter][Prom + Exporter][Prom + Exporter]
       └───────────────metrics + costs─────────────┘
@@ -92,7 +136,8 @@ This demo showcases the high-level routing architecture and algorithms with cont
 
 | Provider | Best For | Cost Range | Context Window |
 |----------|----------|------------|----------------|
-| **Your Clusters** | Simple tasks, cost control | $0.001-0.01/1K | 2K-8K tokens |
+| **Your Clusters (CPU)** | Simple tasks, cost control | $0.001-0.01/1K | 2K-4K tokens |
+| **Your Clusters (GPU)** | Complex reasoning, large context | $0.01-0.05/1K | 4K-8K tokens |
 | **OpenAI GPT-3.5** | General purpose | $0.0005-0.0015/1K | 16K tokens |
 | **Claude Haiku** | Fast responses | $0.00025-0.00125/1K | 200K tokens |
 | **Gemini Flash** | Large context | $0.000075-0.0003/1K | 1M tokens |
@@ -166,18 +211,26 @@ go build -o router .
 ### 5. Test Hybrid Routing
 
 ```bash
-# Test simple request (should route to cluster)
+# Test simple request (should route to CPU cluster)
 curl -X POST http://localhost:8080/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{"model":"gpt-3.5-turbo","messages":[{"role":"user","content":"Hi"}],"max_tokens":10}'
 
-# Test complex request (may route to external)  
+# Test complex request (may route to external or GPU)  
 curl -X POST http://localhost:8080/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{"model":"gpt-4","messages":[{"role":"user","content":"Write a detailed analysis of..."}],"max_tokens":2000}'
 
+# Test GPU endpoint directly (if enabled)
+curl -X POST http://aws-gpu.llm.yourdomain.com/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model":"llama-2-7b-chat","messages":[{"role":"user","content":"Explain quantum computing"}],"max_tokens":500}'
+
 # Run comprehensive test
 ./scripts/test-hybrid-routing.sh
+
+# Validate GPU configuration
+./scripts/validate-gpu.sh
 ```
 
 ## ⚙️ Configuration
@@ -251,6 +304,22 @@ router:
 externalProviders:
   - name: openai
     defaultModel: gpt-3.5-turbo  # Fast and reliable
+```
+
+**GPU-Enabled Setup**:
+```yaml
+router:
+  routingStrategy: hybrid
+  clusterCostThreshold: 0.05      # Higher threshold to utilize GPU clusters
+clusters:
+  - name: aws-gpu
+    endpoint: https://aws-gpu.llm.yourdomain.com
+    costPerHour: 0.378             # g4dn.xlarge spot price
+    capabilities: ["large-context", "reasoning"]
+  - name: aws-cpu  
+    endpoint: https://aws.llm.yourdomain.com
+    costPerHour: 0.0928            # t3.small spot price
+    capabilities: ["simple-tasks"]
 ```
 
 **Capability-Optimized Setup**:

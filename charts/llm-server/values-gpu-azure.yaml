@@ -1,0 +1,34 @@
+# GPU-specific values for Azure LLM server deployment
+# This file provides GPU-optimized configuration that extends values-azure.yaml
+
+gpu:
+  enabled: true
+
+# Override CPU model with larger GPU-optimized model
+model:
+  uri: "https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF/resolve/main/llama-2-7b-chat.q4_k_m.gguf"
+  path: "/models/llama-2-7b-chat.gguf"
+  storageSize: "20Gi"
+
+# GPU-optimized LLM settings
+llamacpp:
+  ngl: -1  # Use all GPU layers
+  flash_attn: true  # Enable for GPU
+  ctx_size: 4096  # Larger context
+  parallel: 8  # More parallel requests
+
+# GPU cost override
+cloud:
+  costPerHour: 0.210  # Standard_NC4as_T4_v3 spot price
+
+# Ingress for GPU endpoint
+ingress:
+  hosts:
+    - host: azure-gpu.llm.yourdomain.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: llm-server-tls-azure-gpu
+      hosts:
+        - azure-gpu.llm.yourdomain.com

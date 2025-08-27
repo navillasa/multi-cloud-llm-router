@@ -1,0 +1,25 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: llm-server-gpu-app
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/navillasa/multi-cloud-llm-router
+    targetRevision: HEAD
+    path: charts/llm-server
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-gcp.yaml
+        - values-gpu-gcp.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: llm-server
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

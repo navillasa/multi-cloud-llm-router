@@ -21,3 +21,36 @@ cloud:
   provider: "azure"
   region: "eastus"
   costPerHour: 0.0416  # Standard_B2s SPOT instance price in eastus
+
+# GPU configuration for Azure
+gpu:
+  enabled: false  # Set to true to enable GPU support
+  resourceName: "nvidia.com/gpu"
+  count: 1
+  nodeSelector:
+    # Azure GPU instance types and accelerators
+    node.kubernetes.io/instance-type: "Standard_NC6s_v3"  # Tesla V100
+    # Alternative: Standard_NC4as_T4_v3, Standard_ND40rs_v2, Standard_NC24rs_v3
+  tolerations:
+    - key: "nvidia.com/gpu"
+      operator: "Exists"
+      effect: "NoSchedule"
+    - key: "sku"
+      operator: "Equal"
+      value: "gpu"
+      effect: "NoSchedule"
+  runtimeClassName: "nvidia"
+
+# Override model settings for GPU workloads  
+# Uncomment when gpu.enabled=true
+# llamacpp:
+#   ngl: -1  # Use all GPU layers
+#   flash_attn: true  # Enable for GPU
+#   ctx_size: 4096  # Larger context for GPU
+#   parallel: 8  # More parallel requests
+
+# Azure GPU cost estimates (eastus, pay-as-you-go)
+# Standard_NC6s_v3 (V100): $3.06/hour (~$2,203/month)
+# Standard_NC4as_T4_v3 (T4): $0.526/hour (~$378/month)
+# Standard_NC8as_T4_v3 (T4): $1.052/hour (~$757/month)
+# Spot pricing typically 60-80% cheaper

@@ -21,3 +21,32 @@ cloud:
   provider: "aws"
   region: "us-east-1"
   costPerHour: 0.0928  # t3.small on-demand price in us-east-1
+
+# GPU configuration for AWS
+gpu:
+  enabled: false  # Set to true to enable GPU support
+  resourceName: "nvidia.com/gpu"
+  count: 1
+  nodeSelector:
+    # AWS GPU instance types and accelerators
+    node.kubernetes.io/instance-type: "g4dn.xlarge"  # Cost-effective GPU instance
+    # Alternative: g5.xlarge, p3.2xlarge, p4d.24xlarge for more powerful GPUs
+  tolerations:
+    - key: "nvidia.com/gpu"
+      operator: "Exists"
+      effect: "NoSchedule"
+  runtimeClassName: "nvidia"
+
+# Override model settings for GPU workloads
+# Uncomment when gpu.enabled=true
+# llamacpp:
+#   ngl: -1  # Use all GPU layers
+#   flash_attn: true  # Enable for GPU
+#   ctx_size: 4096  # Larger context for GPU
+#   parallel: 8  # More parallel requests
+
+# AWS GPU cost estimates (us-east-1, on-demand)
+# g4dn.xlarge: $0.526/hour (~$378/month)
+# g4dn.2xlarge: $0.752/hour (~$540/month)  
+# g5.xlarge: $1.006/hour (~$722/month)
+# Spot pricing typically 60-70% cheaper

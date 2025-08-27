@@ -21,3 +21,32 @@ cloud:
   provider: "gcp"
   region: "us-central1"
   costPerHour: 0.0475  # e2-standard-2 SPOT instance price in us-central1
+
+# GPU configuration for GCP
+gpu:
+  enabled: false  # Set to true to enable GPU support
+  resourceName: "nvidia.com/gpu"
+  count: 1
+  nodeSelector:
+    # GCP GPU instance types and accelerators
+    cloud.google.com/gke-accelerator: "nvidia-tesla-t4"
+    # Alternative: nvidia-tesla-v100, nvidia-tesla-p4, nvidia-tesla-k80
+  tolerations:
+    - key: "nvidia.com/gpu"
+      operator: "Exists"
+      effect: "NoSchedule"
+  runtimeClassName: "nvidia"
+
+# Override model settings for GPU workloads
+# Uncomment when gpu.enabled=true  
+# llamacpp:
+#   ngl: -1  # Use all GPU layers
+#   flash_attn: true  # Enable for GPU
+#   ctx_size: 4096  # Larger context for GPU
+#   parallel: 8  # More parallel requests
+
+# GCP GPU cost estimates (us-central1, on-demand)
+# n1-standard-4 + Tesla T4: $0.35/hour + $0.35/hour = $0.70/hour (~$504/month)
+# n1-standard-4 + Tesla V100: $0.35/hour + $2.48/hour = $2.83/hour (~$2,035/month)
+# n1-standard-8 + Tesla P4: $0.70/hour + $0.60/hour = $1.30/hour (~$935/month)
+# Preemptible pricing typically 60-80% cheaper

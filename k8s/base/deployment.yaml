@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mini-frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mini-frontend
+  template:
+    metadata:
+      labels:
+        app: mini-frontend
+    spec:
+      imagePullSecrets:
+      - name: ghcr-secret
+      containers:
+      - name: frontend
+        image: mini-frontend:latest
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            memory: "16Mi"
+            cpu: "10m"
+          limits:
+            memory: "32Mi"
+            cpu: "50m"

@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: multi-cloud-llm-router
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/navillasa/multi-cloud-llm-router.git
+    targetRevision: HEAD
+    path: k8s/overlays/homelab
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: mini-router
+  syncPolicy:
+    # Enable auto-sync for demo frontend - automatic deployment on git push
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+  ignoreDifferences:
+  - group: apps
+    kind: Deployment
+    jsonPointers:
+    - /spec/template/spec/containers/0/resources/requests/memory
+    - /spec/template/spec/containers/0/resources/requests/ephemeral-storage
+    - /spec/template/spec/containers/0/resources/limits/ephemeral-storage

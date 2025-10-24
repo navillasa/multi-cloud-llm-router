@@ -6,6 +6,9 @@ namespace: mini-router
 resources:
   - ../../base
 
+patches:
+  - path: ingress-homelab-patch.yaml
+
 namePrefix: homelab-
 
 labels:
